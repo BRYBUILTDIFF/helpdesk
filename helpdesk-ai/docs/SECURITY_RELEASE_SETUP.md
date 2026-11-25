@@ -76,33 +76,29 @@ Deploy the reviewed API/frontend together. An old frontend does not handle the n
 
 ## 5. Configure administrator email verification
 
-Use the Gmail API over HTTPS for the Render free instance. [Render blocks SMTP ports on free services](https://render.com/docs/free), so Gmail App Passwords and SMTP cannot deliver mail from that instance.
+Use the Resend HTTPS API for email delivery on the Render free instance. Google Cloud Console and Gmail OAuth credentials are not required. The administrator recipient remains `helpdescai@gmail.com`; it comes from the authenticated account record.
 
-Set these variables privately in **Render ? your API service ? Environment**:
+Set these variables privately in **Render > your API service > Environment**:
 
 ```dotenv
-GMAIL_USER=helpdescai@gmail.com
-GMAIL_CLIENT_ID=YOUR_GOOGLE_OAUTH_CLIENT_ID
-GMAIL_CLIENT_SECRET=YOUR_GOOGLE_OAUTH_CLIENT_SECRET
-GMAIL_REFRESH_TOKEN=YOUR_GOOGLE_OAUTH_REFRESH_TOKEN
+RESEND_API_KEY=YOUR_RESEND_API_KEY
+ADMIN_EMAIL_FROM=HelpDesk AI <onboarding@resend.dev>
 ADMIN_MFA_REQUIRED=true
 ```
 
-Keep the existing `SECURITY_ENCRYPTION_KEY`. These variables belong only to the backend. Remove obsolete `RESEND_API_KEY` and `ADMIN_EMAIL_FROM` variables if previously configured. A Google App Password cannot replace an OAuth refresh token.
+Keep the existing `SECURITY_ENCRYPTION_KEY`. These settings belong only to the backend; never put the API key in chat, source control, or Vercel frontend variables. Remove unused `GMAIL_USER`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` variables if configured.
 
-### One-time Google authorization
+### Set up Resend
 
-1. In [Google Cloud Console](https://console.cloud.google.com/), create/select a project and enable **Gmail API**.
-2. Configure **Google Auth Platform** branding and audience for your account. Add the sending Gmail account as a test user while the app is in Testing. Add only the send permission: `https://www.googleapis.com/auth/gmail.send`.
-3. Create an OAuth client with application type **Web application**. Add this exact authorized redirect URI: `https://developers.google.com/oauthplayground`.
-4. Open [Google OAuth Playground](https://developers.google.com/oauthplayground/). In its settings, enable **Use your own OAuth credentials**, enter your client ID and secret, and keep access type **Offline**.
-5. Authorize only `https://www.googleapis.com/auth/gmail.send`. Sign in as `helpdescai@gmail.com`, grant the requested send permission, and exchange the authorization code for tokens.
-6. Copy the refresh token directly into Render's `GMAIL_REFRESH_TOKEN`; store the client ID and secret in the corresponding variables. Never paste credentials into chat, source files, or Vercel frontend variables.
-7. For ongoing use, move an External OAuth app out of **Testing** before generating its long-lived refresh token. Google normally expires Testing refresh tokens after seven days for this Gmail scope. Follow the verification requirements shown by Google for your app's audience. Reauthorize if tokens are revoked or expire.
+1. Create a [Resend account](https://resend.com/) using `helpdescai@gmail.com` and verify that account email.
+2. Create an API key with sending access and copy it directly into Render's `RESEND_API_KEY`.
+3. For an initial delivery test to that same account email, set `ADMIN_EMAIL_FROM=HelpDesk AI <onboarding@resend.dev>`. Resend restricts its testing sender to the email associated with your Resend account. If your Resend account uses another email, this sender cannot deliver to `helpdescai@gmail.com`.
+4. For production or additional administrators, [verify a domain you control](https://resend.com/domains), add the DNS records requested by Resend, and change `ADMIN_EMAIL_FROM` to an address on that domain, such as `HelpDesk AI <security@your-domain.example>`. A Gmail recipient is supported, but do not use `helpdescai@gmail.com` as the Resend sender.
+5. Save the Render variables and deploy the API and frontend changes, then follow the delivery checks below.
 
-Google documents [sending MIME messages through Gmail](https://developers.google.com/workspace/gmail/api/guides/sending) and [refresh-token expiry](https://developers.google.com/identity/protocols/oauth2#expiration). The server refreshes access tokens automatically, then sends through HTTPS; there is no new public OAuth callback or SMTP connection.
+See [Resend's testing sender restriction](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain) and [email API reference](https://resend.com/docs/api-reference/emails/send-email). The testing sender is for initial verification; configure a verified domain for production.
 
-Missing configuration, Google authorization errors, and delivery failures fail closed. Codes are never returned to the browser or logged. No new migration is needed; challenges reuse the existing AdminSecurity table. Set the administrator account email to a real mailbox before testing; sender configuration does not change the recipient, which always comes from the authenticated administrator record.
+Missing configuration and delivery failures fail closed. Codes are never returned to the browser or logged. No new migration is needed; challenges reuse the existing AdminSecurity table. Sender settings do not change the administrator login or code recipient.
 
 ### Verify delivery after deployment
 

@@ -28,7 +28,7 @@ async function main(){const keepAlive=setInterval(()=>{},1000);let browser,ws;co
   await openTerminal('Edit Simulation');
   if(!await evaluate('Boolean(document.querySelector(".terminal-module-tester"))'))throw Error('Edit did not open the editor');
   await click('Validate and restart test');await click('Perform simulated checkpoint');
-  const fields=await evaluate('document.querySelector(".terminal-step-guide")?.innerText || ""');if(!fields.includes('Instruction')||!fields.includes('Expected output')||!fields.includes('Copy command'))throw Error('Step fields missing');await screenshot('terminal-admin-desktop');
+  const fields=await evaluate('document.querySelector(".terminal-step-guide")?.innerText || ""');if(!fields.includes('Instruction')||!fields.includes('Expected output')||fields.includes('Copy command'))throw Error('Step fields missing');await screenshot('terminal-admin-desktop');
   await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await sleep(300);await screenshot('terminal-admin-mobile');await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   if(process.env.TERMINAL_BROWSER_ADMIN_ONLY==='1'){console.log('Admin browser checks passed: View opens the previous preview; Edit opens the action editor; checkpoint verification works; desktop/mobile captures taken.');return;}
   }
@@ -43,10 +43,8 @@ async function main(){const keepAlive=setInterval(()=>{},1000);let browser,ws;co
   await evaluate('document.querySelector(".terminal-shell .xterm-helper-textarea").focus()');
   await cdp('Browser.grantPermissions',{origin:'http://localhost:5173',permissions:['clipboardReadWrite','clipboardSanitizedWrite']});
   await cdp('Page.bringToFront');
-  await evaluate('window.originalClipboard = navigator.clipboard; Object.defineProperty(navigator,"clipboard",{configurable:true,value:undefined}); document.querySelector(".terminal-command-copy").click()');await sleep(250);
-  const copied=await evaluate('document.querySelector(".terminal-step-guide [role=status]").textContent');if(copied!=='Copied')throw Error('Selection-based clipboard fallback failed: '+copied+' '+await evaluate('JSON.stringify({focused:document.hasFocus(),enabled:document.queryCommandEnabled("copy")})'));
-  await evaluate('Object.defineProperty(navigator,"clipboard",{configurable:true,value:window.originalClipboard})');
-  const clipboard=await evaluate('navigator.clipboard.readText()');if(clipboard!==require('../src/services/terminalRuntime').ACTIONS['account.inspect'].command)throw Error('Clipboard contents do not match command');
+  if(await evaluate('Boolean(document.querySelector(".terminal-step-guide button"))'))throw Error('Terminal guide still has a copy button');
+  await evaluate('navigator.clipboard.writeText('+JSON.stringify(require('../src/services/terminalRuntime').ACTIONS['account.inspect'].command)+')');
   await evaluate('document.querySelector(".terminal-shell .xterm-helper-textarea").focus()');
   await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'v',code:'KeyV',windowsVirtualKeyCode:86,modifiers:2});
   await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'v',code:'KeyV',windowsVirtualKeyCode:86,modifiers:2});await sleep(200);
