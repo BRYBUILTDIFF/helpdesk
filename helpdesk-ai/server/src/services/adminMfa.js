@@ -39,7 +39,7 @@ async function guard(req, res, next) {
   if (!required()) return next();
   try {
     const [record] = await require('../prisma').$queryRaw`SELECT "secret" FROM "AdminSecurity" WHERE "userId"=${req.user.id}`;
-    const proof = record?.secret && verifyProof(req.headers['x-admin-verification'], req.user, record.secret);
+    const proof = record?.secret?.startsWith('email:') && verifyProof(req.headers['x-admin-verification'], req.user, record.secret);
     if (!proof) return res.status(403).json({ code: 'ADMIN_MFA_REQUIRED', message: 'Verify your administrator identity to continue.' });
     if (!['GET','HEAD','OPTIONS'].includes(req.method) && Date.now() - proof.verifiedAt > 5 * 60000) return res.status(403).json({ code: 'ADMIN_STEP_UP_REQUIRED', message: 'Verify again before changing administrator data. Your changes were not submitted.' });
     return next();

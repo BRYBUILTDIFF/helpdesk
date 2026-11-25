@@ -11,12 +11,12 @@ This release changes authentication, AI admission, chat persistence and Windows 
 | A03 frontend headers | Added HTTP anti-framing CSP, MIME-sniffing protection, referrer and permissions policies; the existing HTML CSP still restricts resources and the gateway origin. The Vercel configuration generator preserves these headers. |
 | A04 AI resource bounds | SDK timeouts, zero automatic retries, per-request deadline/cancellation, output limits, PostgreSQL-backed global/user concurrent leases and rolling daily request budgets. These are request/token ceilings, not exact currency budgets. |
 | A05 storage growth | Enforced account/turn/conversation quotas before generation and atomically during append; saved-chat creation cannot bypass them. Paginated saved/recovered conversation retrieval and frontend hydration across pages. |
-| A06 admin MFA | Password plus authenticator enrollment/verification, encrypted factors, one-time recovery codes, replay checks, proof bound to account/token version/factor, and recent verification before admin mutations. |
+| A06 admin MFA | Password plus email verification, encrypted single-use challenges, expiry and attempt limits, proof bound to account/token version/factor, and recent verification before admin mutations. |
 | A07 login abuse | Additional global and IP login limits. Real proxy/IP behavior still requires deployed verification. |
 | A10 shared lab credentials | New production instances use unique generated passwords encrypted in storage and applied through EC2 Windows user data. Confirmed ended-session credential records are cleared. Existing labs need to expire/end during rollout. |
 | A15 recovery/cleanup | Added explicit-target cloud backup entry point and a Windows scheduled-task script; external PostgreSQL backup TLS defaults to required. Watchdog continues after individual failures, summarizes results and signals failures for alarms. Scheduling, offsite copies, alarm recipients and a cloud-data restore drill remain operational steps. |
 
-The encryption helper uses AES-256-GCM with purpose-bound authenticated data. Admin TOTP verification follows time-based six-digit SHA-1 codes with a 30-second step and a one-step clock window. A used counter cannot be reused. Eight random recovery codes are shown once; only their hashes are retained. A successful recovery revokes sessions, removes the factor and requires fresh sign-in/enrollment; it does not issue an admin bypass token.
+The encryption helper uses AES-256-GCM with purpose-bound authenticated data. Admin email codes expire after five minutes, allow five attempts, and can be used once. Resends have a one-minute cooldown and replace the previous code. Codes go only to the administrator email stored in the database. Password changes invalidate outstanding challenges. Existing authenticator proofs are no longer accepted.
 
 ## 1. Contain existing secret exposure
 
@@ -74,20 +74,48 @@ Failed/rejected attempts can consume daily counters to prevent retry abuse. Leas
 
 Deploy the reviewed API/frontend together. An old frontend does not handle the new pagination or MFA gate correctly. Vercel must rebuild to include the MFA screen, proof-header interceptor, pagination and headers; do not just change Render settings.
 
-## 5. Enroll every admin
+## 5. Configure administrator email verification
 
-1. Sign in with the normal account password; finish any mandatory password change first.
-2. The admin page shows **Protect your administrator account**. Enter the current password and select **Set up authenticator**.
-3. In your authenticator app, add a manual time-based account: issuer HelpDesk AI, your admin email, six digits, 30-second period. Enter the displayed setup key privately. No third-party QR service receives the secret.
-4. Enter a fresh six-digit authenticator code and verify. Save the eight recovery codes in a password manager before continuing.
-5. Reloading the page clears the in-memory MFA proof and requires another verification. The proof lasts at most one hour; mutations require a proof verified in the last five minutes. After a step-up challenge, reverify and retry the intended change deliberately; requests are not automatically replayed.
-6. If the device is lost, select **Use a recovery code**, enter the password and one recovery code, then sign in and enroll a replacement authenticator. Previous recovery codes are all invalidated by factor removal.
+Use the Gmail API over HTTPS for the Render free instance. [Render blocks SMTP ports on free services](https://render.com/docs/free), so Gmail App Passwords and SMTP cannot deliver mail from that instance.
 
-MFA applies to the backend `requireAdmin` gate, not only the page. Normal access tokens and refresh cookies remain separate. Recovery/password/role changes invalidate existing verification proofs through state and token versions. Do not share an administrator account. This initial release logs successful verification/recovery metadata; the audit's broader security-event service remains separate work.
+Set these variables privately in **Render ? your API service ? Environment**:
+
+```dotenv
+GMAIL_USER=helpdescai@gmail.com
+GMAIL_CLIENT_ID=YOUR_GOOGLE_OAUTH_CLIENT_ID
+GMAIL_CLIENT_SECRET=YOUR_GOOGLE_OAUTH_CLIENT_SECRET
+GMAIL_REFRESH_TOKEN=YOUR_GOOGLE_OAUTH_REFRESH_TOKEN
+ADMIN_MFA_REQUIRED=true
+```
+
+Keep the existing `SECURITY_ENCRYPTION_KEY`. These variables belong only to the backend. Remove obsolete `RESEND_API_KEY` and `ADMIN_EMAIL_FROM` variables if previously configured. A Google App Password cannot replace an OAuth refresh token.
+
+### One-time Google authorization
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create/select a project and enable **Gmail API**.
+2. Configure **Google Auth Platform** branding and audience for your account. Add the sending Gmail account as a test user while the app is in Testing. Add only the send permission: `https://www.googleapis.com/auth/gmail.send`.
+3. Create an OAuth client with application type **Web application**. Add this exact authorized redirect URI: `https://developers.google.com/oauthplayground`.
+4. Open [Google OAuth Playground](https://developers.google.com/oauthplayground/). In its settings, enable **Use your own OAuth credentials**, enter your client ID and secret, and keep access type **Offline**.
+5. Authorize only `https://www.googleapis.com/auth/gmail.send`. Sign in as `helpdescai@gmail.com`, grant the requested send permission, and exchange the authorization code for tokens.
+6. Copy the refresh token directly into Render's `GMAIL_REFRESH_TOKEN`; store the client ID and secret in the corresponding variables. Never paste credentials into chat, source files, or Vercel frontend variables.
+7. For ongoing use, move an External OAuth app out of **Testing** before generating its long-lived refresh token. Google normally expires Testing refresh tokens after seven days for this Gmail scope. Follow the verification requirements shown by Google for your app's audience. Reauthorize if tokens are revoked or expire.
+
+Google documents [sending MIME messages through Gmail](https://developers.google.com/workspace/gmail/api/guides/sending) and [refresh-token expiry](https://developers.google.com/identity/protocols/oauth2#expiration). The server refreshes access tokens automatically, then sends through HTTPS; there is no new public OAuth callback or SMTP connection.
+
+Missing configuration, Google authorization errors, and delivery failures fail closed. Codes are never returned to the browser or logged. No new migration is needed; challenges reuse the existing AdminSecurity table. Set the administrator account email to a real mailbox before testing; sender configuration does not change the recipient, which always comes from the authenticated administrator record.
+
+### Verify delivery after deployment
+
+1. Deploy the API on Render and rebuild the frontend on Vercel together.
+2. Sign in and select **Send email code**. Read the six-digit code in your administrator mailbox, then select **Verify and continue**.
+3. Codes expire after five minutes. **Resend code** replaces the old code after a one-minute cooldown. Five incorrect attempts require a new code.
+4. Reloading clears the in-memory proof. Proofs last at most one hour; mutations require verification within five minutes. Reverify and deliberately retry a challenged change.
+
+Existing administrators transition directly to email verification without authenticator enrollment or recovery codes. Backend admin endpoints enforce verification. Losing mailbox access requires private owner recovery; there is no public bypass.
 
 ## 6. Verify the Windows AMI before re-enabling
 
-### Owner recovery when authenticator and recovery codes are both lost
+### Owner maintenance for administrator verification
 
 From the server directory, an authorized database owner can inspect the exact account first:
 
@@ -95,7 +123,7 @@ From the server directory, an authorized database owner can inspect the exact ac
 node scripts/reset-admin-mfa.js --env-file .security/render-owner.env --email YOUR_ADMIN_EMAIL
 ```
 
-Only when the account has an enrollment and its owner needs recovery, repeat with `--apply`. This deletes that account's MFA enrollment, revokes its refresh/access session versions, and records an out-of-band maintenance audit entry with actor ID 0. Password, role, account and application data remain. Sign in with the current password and enroll again; save the newly displayed recovery codes. This maintenance operation requires private database-owner access and is not exposed as a public recovery bypass. If no enrollment exists, investigate deployment/login failures instead of resetting unrelated account data.
+Only when the account has an enrollment and its owner needs recovery, repeat with `--apply`. This deletes that account's MFA enrollment, revokes its refresh/access session versions, and records an out-of-band maintenance audit entry with actor ID 0. Password, role, account and application data remain. Sign in with the current password and request an email code. This maintenance operation requires private database-owner access and is not exposed as a public recovery bypass. If no enrollment exists, investigate deployment/login failures instead of resetting unrelated account data.
 
 New production launches always use unique passwords; `WINDOWS_UNIQUE_CREDENTIALS=true` enables the same behavior in local testing. The bootstrap uses Windows EC2Launch user-data execution to create/update `WINDOWS_LAB_USERNAME` and add it to Remote Desktop Users. It uses the existing launch template but **overrides its UserData**. Review/merge any required template initialization into a tested AMI/bootstrap before deployment; do not assume existing custom user-data commands still run.
 
