@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import {editTerminalInput, redrawTerminalInput} from "./terminalInput.mjs";
 
 import "@xterm/xterm/css/xterm.css";
 
@@ -125,6 +126,7 @@ export default function TerminalEmulator({
 }) {
   const containerRef = useRef(null);
   const inputBufferRef = useRef("");
+  const inputCursorRef = useRef(0);
   const historyRef = useRef([]);
   const historyIndexRef = useRef(0);
   const currentPathRef = useRef(platform === "mac-terminal" ? initialPath : normalizePath(initialPath));
@@ -196,25 +198,20 @@ export default function TerminalEmulator({
     }
 
     let disposed = false;
+    const promptText = () => platform === "mac-terminal" ? `${username}@${hostname} ${currentPathRef.current} % ` : `${currentPathRef.current}> `;
     const writePrompt = () => {
-      term.write(platform === "mac-terminal" ? `${username}@${hostname} ${currentPathRef.current} % ` : `${currentPathRef.current}> `, () => { if (!disposed) term.scrollToBottom(); });
+      const prompt = promptText();
+      // The extra blank normalizes xterm's pending wrap at the right margin.
+      term.write(prompt + ' ' + '\r' + `\x1b[${[...prompt].length % term.cols + 1}G`, () => { if (!disposed) term.scrollToBottom(); });
     };
-
-    const clearCurrentInput = () => {
-      if (!inputBufferRef.current.length) {
-        return;
-      }
-      term.write("\b \b".repeat(inputBufferRef.current.length));
-      inputBufferRef.current = "";
+    const updateInput = next => {
+      const previous = {value: inputBufferRef.current, cursor: inputCursorRef.current};
+      if (previous.value === next.value && previous.cursor === next.cursor) return;
+      term.write(redrawTerminalInput(promptText(), previous, next, term.cols));
+      inputBufferRef.current = next.value;
+      inputCursorRef.current = next.cursor;
     };
-
-    const replaceCurrentInput = (value) => {
-      clearCurrentInput();
-      if (value) {
-        inputBufferRef.current = value;
-        term.write(value);
-      }
-    };
+    const replaceCurrentInput = value => updateInput({value, cursor: [...value].length});
 
     const writeLines = (value) => {
       const lines = Array.isArray(value) ? value : String(value || "").split("\n");
@@ -932,34 +929,11 @@ export default function TerminalEmulator({
     };
     container.addEventListener('paste', handlePaste, true);
     const disposable = term.onData((data) => {
-      if (data === "\r") {
-        onEnter();
-        return;
-      }
-      if (data === "\u007F") {
-        if (inputBufferRef.current.length > 0) {
-          inputBufferRef.current = inputBufferRef.current.slice(0, -1);
-          term.write("\b \b");
-        }
-        return;
-      }
-      if (data === "\u001b[A") {
-        moveHistory(-1);
-        return;
-      }
-      if (data === "\u001b[B") {
-        moveHistory(1);
-        return;
-      }
-      for (const char of data) {
-        const code = char.charCodeAt(0);
-        const printable = code >= 32 && code !== 127;
-        if (!printable) {
-          continue;
-        }
-        inputBufferRef.current += char;
-        term.write(char);
-      }
+      if (commandInFlight) return;
+      if (data === "\r") { onEnter(); return; }
+      if (data === "\x1b[A" || data === "\x1bOA") { moveHistory(-1); return; }
+      if (data === "\x1b[B" || data === "\x1bOB") { moveHistory(1); return; }
+      updateInput(editTerminalInput({value: inputBufferRef.current, cursor: inputCursorRef.current}, data));
     });
 
     let resizeFrame;
