@@ -7,7 +7,7 @@ let moderationClient = null;
 let moderationClientKey = "";
 
 function getAIProvider() {
-  return (process.env.AI_PROVIDER || "openai").toLowerCase();
+  return (process.env.AI_PROVIDER || "openai").trim().toLowerCase();
 }
 
 function getAIBaseURL(provider) {
@@ -21,7 +21,7 @@ function getAIBaseURL(provider) {
 }
 
 function getAIApiKey() {
-  return process.env.AI_API_KEY || process.env.OPENAI_API_KEY || "";
+  return process.env.AI_API_KEY || (getAIProvider() === "deepseek" ? process.env.DEEPSEEK_API_KEY : "") || process.env.OPENAI_API_KEY || "";
 }
 
 function getDefaultModel(provider) {
@@ -31,7 +31,7 @@ function getDefaultModel(provider) {
   if (process.env.OPENAI_MODEL) {
     return process.env.OPENAI_MODEL;
   }
-  return provider === "deepseek" ? "deepseek-chat" : "gpt-4o-mini";
+  return provider === "deepseek" ? "deepseek-flash" : "gpt-4o-mini";
 }
 
 function getOpenAIClient() {

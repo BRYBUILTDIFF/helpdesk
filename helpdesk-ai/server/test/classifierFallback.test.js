@@ -4,10 +4,10 @@ let localCalls = 0, providerCalls = 0, invalid = false;
 let classification = "in_scope";
 globalThis.fetch = async () => { localCalls++; throw new Error("Local classifier offline"); };
 require.cache[require.resolve("../src/utils/openai")] = { exports: {
-  getAIProvider: () => "deepseek", getDefaultModel: () => "deepseek-chat",
+  getAIProvider: () => "deepseek", getDefaultModel: () => "deepseek-flash",
   getOpenAIClient: () => ({ chat: { completions: { create: async (request, options) => {
     providerCalls++;
-    assert.equal(request.model, "deepseek-chat"); assert.equal(options.maxRetries, 0);
+    assert.equal(request.model, "deepseek-flash"); assert.deepEqual(request.thinking, {type:"disabled"}); assert.equal(options.maxRetries, 0);
     return { choices: [{ message: { content: invalid ? "not a classification" : JSON.stringify({ classification, confidence: 0.99, reason: "Semantic decision" }) } }] };
   } } } })
 } };

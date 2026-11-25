@@ -73,7 +73,7 @@ Option B: DeepSeek (OpenAI-compatible)
 AI_PROVIDER=deepseek
 AI_API_KEY=your_deepseek_api_key
 AI_BASE_URL=https://api.deepseek.com
-AI_MODEL=deepseek-chat
+AI_MODEL=deepseek-flash
 ```
 
 Note: `AI_API_KEY` is preferred. `OPENAI_API_KEY` / `OPENAI_MODEL` are still supported as fallback.

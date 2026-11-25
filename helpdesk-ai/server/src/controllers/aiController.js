@@ -110,6 +110,7 @@ async function generateSuggestedTickets(_req, res) {
 
   try {
     const completion = await client.chat.completions.create({
+      ...(getAIProvider() === "deepseek" ? { thinking: { type: "disabled" } } : {}),
       model: getDefaultModel(getAIProvider()),
       max_tokens: 1200,
       temperature: 0.55,
@@ -315,6 +316,7 @@ async function chat(req, res, next) {
     const provider = getAIProvider();
     operation = "generate-answer";
     const completion = await client.chat.completions.create({
+      ...(getAIProvider() === "deepseek" ? { thinking: { type: "disabled" } } : {}),
       model: getDefaultModel(provider),
       max_tokens: require('../services/aiRequestContext').bounded('AI_MAX_OUTPUT_TOKENS', 1200, 128, 4000),
       temperature: 0.3,

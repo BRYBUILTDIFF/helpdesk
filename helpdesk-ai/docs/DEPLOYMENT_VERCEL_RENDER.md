@@ -43,7 +43,7 @@ Provide the prompted environment variables:
 | `DATABASE_URL` | Restricted URL from `.security/cloud-runtime.env`; external Render URL initially works with access allowed for Render's outbound IPs; you can later use the database's internal hostname while preserving the restricted username/password |
 | `CLIENT_URL` | Your exact Vercel production origin, e.g. `https://your-project.vercel.app`; reserve/create the Vercel project first if needed |
 | `AI_PROVIDER` | Your configured provider, e.g. `deepseek` |
-| `AI_MODEL` | A model supported by that provider, e.g. `deepseek-chat` |
+| `AI_MODEL` | A model supported by that provider, e.g. `deepseek-flash` |
 | `AI_API_KEY` | A newly issued answer-provider key |
 | `OPENAI_API_KEY` | A newly issued OpenAI key for moderation (also needed when answers use DeepSeek) |
 

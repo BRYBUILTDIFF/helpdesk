@@ -4,7 +4,7 @@ let confidence;
 let providerCalls = 0;
 globalThis.fetch = async () => ({ ok: true, text: async () => JSON.stringify({ message: { content: JSON.stringify({ classification: "in_scope", confidence, reason: "Printer ticket" }) } }) });
 require.cache[require.resolve("../src/utils/openai")] = { exports: {
-  getAIProvider: () => "deepseek", getDefaultModel: () => "deepseek-chat",
+  getAIProvider: () => "deepseek", getDefaultModel: () => "deepseek-flash",
   getOpenAIClient: () => ({ chat: { completions: { create: async () => {
     providerCalls++;
     return { choices: [{ message: { content: JSON.stringify({ classification: "in_scope", confidence: 0.99, reason: "Printer support" }) } }] };

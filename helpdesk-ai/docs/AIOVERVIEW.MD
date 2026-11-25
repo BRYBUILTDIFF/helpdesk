@@ -34,7 +34,7 @@ The system does not rely on one model call for all decisions.
 
 | Role | Default/service | Input and output |
 | --- | --- | --- |
-| Answer generation | Configured OpenAI-compatible provider; default `gpt-4o-mini`, or `deepseek-chat` for DeepSeek | Helpdesk system prompt + trusted recent history + latest message → answer text |
+| Answer generation | Configured OpenAI-compatible provider; default `gpt-4o-mini`, or `deepseek-flash` for DeepSeek | Helpdesk system prompt + trusted recent history + latest message → answer text |
 | IT scope classification | Local Ollama-compatible endpoint, default `deepseek-r1:7b`; configured answer provider as fallback | Classification instructions + policy phrases + context → JSON label, confidence, reason |
 | Content moderation | Separate OpenAI client, `omni-moderation-latest` | Current user message or generated answer → moderation result |
 | Dashboard starting suggestions | Configured answer provider | Fixed suggestion request → up to six issue cards |
@@ -359,10 +359,11 @@ Prompt insights operate on redacted/truncated policy-event samples, not full use
 | Variable | Purpose/default in source |
 | --- | --- |
 | `AI_PROVIDER` | `openai` by default; `deepseek` selects DeepSeek defaults |
-| `AI_API_KEY` | Primary answer-provider key; falls back to `OPENAI_API_KEY` |
+| `AI_API_KEY` | Primary answer-provider key; for DeepSeek, falls back to `DEEPSEEK_API_KEY`, then legacy `OPENAI_API_KEY` |
 | `AI_BASE_URL` | Optional OpenAI-compatible endpoint override; DeepSeek defaults to `https://api.deepseek.com` |
 | `AI_MODEL` | Primary model override; falls back to `OPENAI_MODEL`, then provider default |
 | `OPENAI_API_KEY` | Moderation key; also legacy answer-key fallback |
+| `POLICY_LOCAL_CLASSIFIER_ENABLED` | Set `false` on Render when no reachable Ollama classifier exists; still runs configured-provider scope checks |
 | `POLICY_CLASSIFIER_URL` | Local classification URL; default `http://localhost:11434/api/chat` |
 | `POLICY_CLASSIFIER_MODEL` | Default `deepseek-r1:7b` |
 | `POLICY_CLASSIFIER_TIMEOUT_MS` | Local scope timeout; default 8,000 ms, minimum 1,000 |
@@ -421,3 +422,40 @@ Relevant automated coverage includes `chat.test.js` (forged-history rejection, s
 Validation during this documentation task: all 24 tests passed across `chat.test.js`, `policy.test.js`, `classifierFallback.test.js`, `classifierConfidence.test.js`, `safetyKeywords.test.js`, `sessionRestrictions.test.js`, and `policyMetrics.test.js`. The chat test harness emitted a warning about its mocked exports lacking `evaluateResponseDecision`; no test failed. No live-provider or database integration checks were run for this documentation change.
 
 This overview was derived from source inspection. It does not certify external provider availability, deployed settings, model accuracy, or production infrastructure state.
+
+
+## Repeated SCOPE_CLASSIFIER_UNAVAILABLE on Render
+
+The request is withheld with HTTP 503 if no classifier can produce a valid scope decision. This is an availability failure. Do not disable scope enforcement or allow all prompts to hide the error.
+
+For the official DeepSeek service, configure the Render backend:
+
+```dotenv
+AI_PROVIDER=deepseek
+AI_BASE_URL=https://api.deepseek.com
+AI_MODEL=deepseek-flash
+AI_API_KEY=YOUR_DEEPSEEK_API_KEY
+POLICY_LOCAL_CLASSIFIER_ENABLED=false
+```
+
+Set the real key privately in Render. `DEEPSEEK_API_KEY` is also recognized if `AI_API_KEY` is absent. The primary key takes precedence: remove or replace a stale `AI_API_KEY` rather than expecting a secondary key to override it. Keep any separate moderation credentials already configured.
+
+Update existing `AI_MODEL` and legacy `OPENAI_MODEL` overrides as needed; changing the code default does not override an explicitly configured model. DeepSeek retired `deepseek-chat` and `deepseek-reasoner` on July 24, 2026 ([retirement notice](https://api-docs.deepseek.com/news/news260424/)). Its current API documents `deepseek-flash` ([model documentation](https://api-docs.deepseek.com/)). DeepSeek requests in this app disable thinking mode to preserve the short, bounded requests previously served by the non-thinking chat model. Scope requests still require JSON, a valid label, and sufficient confidence.
+
+`POLICY_LOCAL_CLASSIFIER_ENABLED=false` skips only the optional Ollama endpoint, avoiding attempts to contact localhost on Render. It still requires provider classification. Leave it enabled when a real reachable Ollama service is available.
+
+Deploy the updated backend and retry one normal IT question. The server logs fixed categories, without provider messages, prompts, keys, or raw responses:
+
+| Category | Action |
+| --- | --- |
+| MISSING_API_KEY | Set the backend provider key. |
+| AUTHENTICATION_OR_PERMISSION (401/403) | Check the key and its access permissions. |
+| BILLING (402) | Check the DeepSeek API account balance. |
+| MODEL_OR_REQUEST_CONFIGURATION (400/404/422) | Check the model and official OpenAI-compatible base URL. |
+| RATE_LIMIT_OR_QUOTA (429) | Review API limits and reduce request concurrency. |
+| TIMEOUT / NETWORK | Check provider reachability and latency. |
+| INVALID_RESPONSE | The provider returned an empty, malformed, or invalid classification. |
+| PROVIDER_OUTAGE (5xx) | Check provider service availability and retry later. |
+| REQUEST_ABORTED | The user disconnected or the overall request deadline expired. |
+
+DeepSeek documents its [HTTP error codes](https://api-docs.deepseek.com/quick_start/error_codes/). The earlier generic `UNAVAILABLE` log was insufficient to distinguish these causes. Unit tests cover request construction and failure handling with provider stubs; they do not establish live credentials, billing, or model accuracy.

@@ -329,6 +329,7 @@ async function generateSimulationDraftFromPrompt(prompt, occurrences = 1, option
       ? 'Use only the action catalog supplied next. Each step MUST include instruction (plain explanation of what and why), command (the catalog command or empty string for a checkpoint), expectedOutput (exact deterministic output if known; omit rather than invent), type, actionId, and expectedCommands (exactly the catalog command, or [] for a checkpoint). Never infer commands from prose, invent executable actions, or use placeholders. Keep only necessary steps. Catalog: ' + JSON.stringify(require('../services/terminalRuntime').ACTIONS)
       : 'Include 5 to 7 practical GUI steps appropriate for this OS surface. Do not invent proof of real OS actions.';
     const completion = await client.chat.completions.create({
+      ...(getAIProvider() === "deepseek" ? { thinking: { type: "disabled" } } : {}),
       model: getDefaultModel(provider),
       max_tokens: require('../services/aiRequestContext').bounded('AI_DRAFT_MAX_OUTPUT_TOKENS', 3000, 512, 6000),
       temperature: 0.3,

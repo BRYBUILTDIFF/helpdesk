@@ -12,7 +12,7 @@ require.cache[require.resolve("../src/store/policyConfigStore")] = { exports: { 
   messages: { outOfScopeMessage: "Please ask an IT support question." },
   greetingPatternRegex: [], inScopeKeywordRegex: [/\bvpn\b/i], inScopeIntentRegex: [], outOfScopeKeywordRegex: [/\bessay\b/i]
 }) } };
-require.cache[require.resolve("../src/utils/openai")] = { exports: { getOpenAIClient: () => null, getAIProvider: () => "deepseek", getDefaultModel: () => "deepseek-chat" } };
+require.cache[require.resolve("../src/utils/openai")] = { exports: { getOpenAIClient: () => null, getAIProvider: () => "deepseek", getDefaultModel: () => "deepseek-flash" } };
 require.cache[require.resolve("../src/policy/contentSafety")] = { exports: { evaluateContentSafety: async () => null } };
 const { evaluatePromptPolicy } = require("../src/policy/promptPolicy");
 test("established IT conversations still classify unfamiliar short requests", async () => {

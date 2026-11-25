@@ -1,3 +1,4 @@
+const { classifierFailure, classifierError } = require("./classifierFailure");
 const { getPolicyRuntimeConfig } = require("../store/policyConfigStore");
 const { evaluateContentSafety } = require("./contentSafety");
 const { getOpenAIClient, getAIProvider, getDefaultModel } = require("../utils/openai");
@@ -237,7 +238,7 @@ async function classifyWithLocalDeepSeek(message, history, policy) {
 // The optional Ollama classifier and the configured answer provider are distinct services.
 // If Ollama is offline, retain classification through the configured DeepSeek API.
 async function classifyWithDeepSeek(message, history, policy) {
-  if (Date.now() >= localRetryAfter) {
+  if (process.env.POLICY_LOCAL_CLASSIFIER_ENABLED !== "false" && Date.now() >= localRetryAfter) {
     try {
       const decision = await classifyWithLocalDeepSeek(message, history, policy);
       if (decision.confidence < 0.75) throw new Error("Local classifier decision needs verification.");
@@ -249,8 +250,9 @@ async function classifyWithDeepSeek(message, history, policy) {
     }
   }
   const client = getOpenAIClient();
-  if (!client) throw new Error("No scope classifier is available.");
+  if (!client) throw classifierError("CLASSIFIER_NOT_CONFIGURED", "No scope classifier is available.");
   const completion = await client.chat.completions.create({
+      ...(getAIProvider() === "deepseek" ? { thinking: { type: "disabled" } } : {}),
     model: getDefaultModel(getAIProvider()),
     temperature: 0,
     max_tokens: 250,
@@ -262,9 +264,9 @@ async function classifyWithDeepSeek(message, history, policy) {
     ]
   }, { timeout: Math.max(1000, Number(process.env.POLICY_PROVIDER_TIMEOUT_MS) || 15000), maxRetries: 0, signal: require('../services/aiRequestContext').context.getStore()?.signal });
   const parsed = findClassifierPayloadInText(completion.choices?.[0]?.message?.content);
-  if (!parsed) throw new Error("Configured provider returned an invalid scope decision.");
+  if (!parsed) throw classifierError("CLASSIFIER_INVALID_RESPONSE", "Configured provider returned an invalid scope decision.");
   const confidence = Number(parsed.confidence);
-  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error("Scope confidence is invalid.");
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw classifierError("CLASSIFIER_INVALID_RESPONSE", "Scope confidence is invalid.");
   return { classification: parsed.classification.trim(), confidence, reason: String(parsed.reason || "Scope classification.").slice(0, 500), source: getAIProvider(), model: getDefaultModel(getAIProvider()) };
 }
 
@@ -348,7 +350,7 @@ async function evaluatePromptDecision(message, history, context, policy) {
 
     return { ...outOfScopeRedirect(policy), metadata };
   } catch (err) {
-    console.error("[PolicyClassifier] Unavailable", { code: err?.code || "UNAVAILABLE" });
+    console.error("[PolicyClassifier] Unavailable", classifierFailure(err));
     return {
       allowed: false,
       httpStatus: 503,
