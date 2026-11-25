@@ -38,6 +38,12 @@ router.use(verifyToken, requireAdmin, require("../middleware/adminAudit"));
 const { requestLimit } = require("../middleware/requestLimits");
 router.use((req, res, next) => ["POST", "PATCH", "PUT", "DELETE"].includes(req.method)
   ? requestLimit("admin-writes", { max: 60, windowMs: 60000, key: req => req.user.id })(req, res, next) : next());
+const knowledge = require('../controllers/knowledgeController');
+router.get('/knowledge', knowledge.list);
+router.get('/knowledge/:id', [param('id').isUUID()], validateRequest, knowledge.detail);
+router.post('/knowledge', requestLimit('knowledge-upload',{max:10,windowMs:3600000,key:req=>req.user.id}), knowledge.receiveFiles, knowledge.ingest);
+router.patch('/knowledge/:id', [param('id').isUUID(),body('status').isIn(['DRAFT','APPROVED','ARCHIVED'])], validateRequest, knowledge.status);
+router.post('/knowledge/search', [body('query').isString().trim().isLength({min:3,max:1000})], validateRequest, knowledge.search);
 router.post("/simulation-modules/draft", requestLimit("admin-generation", { max: 10, windowMs: 3600000, key: req => req.user.id }));
 router.post('/simulation-modules/draft', ...require('../middleware/aiResources').aiLimits);
 router.post('/simulation-modules', (req, res, next) => {

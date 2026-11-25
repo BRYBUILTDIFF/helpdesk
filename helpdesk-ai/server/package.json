@@ -25,7 +25,8 @@
     "security:verify-api": "node scripts/verify-api-security.js",
     "security:scan-history": "node scripts/scan-repository-secrets.js",
     "security:provision-db": "node scripts/provision-runtime-role.js --apply",
-    "test:persistence": "node --test test/durablePersistence.integration.js"
+    "test:persistence": "node --test test/durablePersistence.integration.js",
+    "test:knowledge-rag": "node scripts/test-knowledge-rag.js"
   },
   "dependencies": {
     "@aws-sdk/client-ec2": "^3.1095.0",
@@ -39,10 +40,14 @@
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.13.0",
+    "multer": "^2.5.0",
     "openai": "^4.83.0",
-    "prisma": "^6.8.2"
+    "prisma": "^6.8.2",
+    "yauzl": "^3.4.0"
   },
   "devDependencies": {
+    "jszip": "^3.10.2",
     "nodemon": "^3.1.10"
   },
   "engines": {

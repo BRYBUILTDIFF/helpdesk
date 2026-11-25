@@ -8,6 +8,7 @@ const router = express.Router();
 
 router.use(verifyToken);
 router.get("/modules", listEnabledSimulationModules);
+router.get('/modules/:id/sources', [param('id').isString().isLength({min:1,max:80})], validateRequest, require('../controllers/simulationController').getSimulationSources);
 const attempts = require("../controllers/simulationAttemptController");
 router.post("/modules/:id/attempts", [param("id").isLength({ min: 1, max: 80 })], validateRequest,
   require("../middleware/requestLimits").requestLimit("simulation-attempts", { max: 30, windowMs: 3600000, key: req => req.user.id }), attempts.startAttempt);

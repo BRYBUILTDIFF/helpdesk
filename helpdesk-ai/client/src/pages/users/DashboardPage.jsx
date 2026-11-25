@@ -1,3 +1,4 @@
+import SimulationSources from './Modules/SimulationSources';
 import ModalCloseButton from '../../components/ModalCloseButton';
 import TerminalReview from "./Modules/TerminalReview";
 import TerminalStepGuide from "./Modules/TerminalStepGuide";
@@ -3690,7 +3691,8 @@ export default function DashboardPage() {
                     </button>
                   ))}
                 </div>
-              </div>
+              <SimulationSources key={modalCanvasState?.simulationId} moduleId={modalCanvasState?.simulationId} stepIndex={modalSafeStep}/>
+</div>
               <div className="step-modal-right">
                 <h3>Simulation Canvas</h3>
                 <div className="step-modal-current">
@@ -3702,6 +3704,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   {modalCanvasState?.simulationId ? <TerminalStepGuide iconOnly key={modalSafeStep} step={modalStepDetails[modalSafeStep] || {}} /> : null}
+                  
                   {!modalCanvasState?.simulationId && modalStepDetails[modalSafeStep]?.action ? (
                     <div className="step-modal-current-text">{modalStepDetails[modalSafeStep].action}</div>
                   ) : null}
@@ -4264,7 +4267,8 @@ export default function DashboardPage() {
                             </button>
                           ))}
                         </div>
-                      </div>
+                      <SimulationSources key={modalCanvasState?.simulationId} moduleId={modalCanvasState?.simulationId} stepIndex={modalSafeStep}/>
+</div>
                       <div className="step-modal-right">
                         <h3>Simulation Canvas</h3>
                         <div className="step-modal-current">
@@ -4276,6 +4280,7 @@ export default function DashboardPage() {
                             </span>
                           </div>
                           {modalCanvasState?.simulationId ? <TerminalStepGuide iconOnly key={modalSafeStep} step={modalStepDetails[modalSafeStep] || {}} /> : null}
+                  
                   {!modalCanvasState?.simulationId && modalStepDetails[modalSafeStep]?.action ? (
                             <div className="step-modal-current-text">{modalStepDetails[modalSafeStep].action}</div>
                           ) : null}

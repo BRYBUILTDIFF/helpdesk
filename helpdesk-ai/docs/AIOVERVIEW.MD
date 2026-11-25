@@ -12,6 +12,8 @@ The chat model generates text. Its chat request contains no tools or function de
 
 There is no implemented retrieval-augmented generation pipeline, vector database, embedding search, document ingestion, or fine-tuning workflow in the answering path. Project documentation and simulation modules are not automatically inserted into the chat model's context.
 
+Administrator simulation generation now has a separate PostgreSQL full-text RAG path over approved Word/TXT sources. See [Admin simulation RAG](ADMIN_RAG_SETUP.md) for ingestion, generation, source snapshots, publication checks, and deployment. This does not change the chat answering path described above.
+
 ## 2. System architecture
 
 | Component | Responsibility | Main source |

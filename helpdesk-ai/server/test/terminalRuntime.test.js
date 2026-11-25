@@ -1,6 +1,22 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const r=require('../src/services/terminalRuntime');
 const definition=()=>r.accountDefinition();
+test('folder creation changes listing state on both terminal surfaces',()=>{
+ for(const [surface,prefix] of [['windows-terminal',''],['mac-terminal','mac.']]){
+  const ids=[prefix+'filesystem.list',prefix+'filesystem.create-folder',prefix+'filesystem.list'];
+  const d={surface,steps:ids.map(actionId=>({title:actionId,type:'command',actionId,expectedCommands:[r.ACTIONS[actionId].command]}))};
+  let current=r.newRuntime(d);
+  const outputs=[];
+  for(let step=0;step<ids.length;step++){
+   const result=r.advance(current,step,{step,kind:'command',command:r.ACTIONS[ids[step]].command});
+   assert.equal(result.accepted,true);current=result.runtime;outputs.push(result.output);
+  }
+  assert.match(outputs[0],/empty/);assert.equal(outputs[2],'MyNewFolder');
+  assert.equal(current.state.folderCreated,true);
+  assert.equal(r.execute(prefix+'filesystem.create-folder',current.state).ok,false);
+  assert.deepEqual(r.validateDefinition(r.withExpectedOutputs(d)),[]);
+ }
+});
 test('catalog account recovery performs real simulated state transitions with distinct checkpoints',()=>{
  let runtime=r.newRuntime(definition()),next=0;const outputs=[];
  for(const step of runtime.definition.steps){const changed=r.advance(runtime,next,{step:next,kind:step.type,command:step.expectedCommands[0]});assert.equal(changed.accepted,true);runtime=changed.runtime;next=changed.nextStep;outputs.push(changed.output);}

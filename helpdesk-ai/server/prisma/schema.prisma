@@ -32,6 +32,8 @@ model User {
   simulationCompletions SimulationCompletion[]
   simulationDrafts SimulationDraft[]
   chatTurns ChatTurn[]
+  knowledgeUploads KnowledgeDocument[] @relation("KnowledgeUploaded")
+  knowledgeApprovals KnowledgeDocument[] @relation("KnowledgeApproved")
   adminSecurity AdminSecurity?
 }
 
@@ -112,6 +114,7 @@ model PolicyRule {
 }
 
 model SimulationModule {
+  provenance Json?
   revision              Int                    @default(1)
   createdById           Int?
   updatedById           Int?
@@ -327,4 +330,32 @@ model ChatTurn {
   reply String
   createdAt DateTime @default(now())
   @@index([userId, sessionId, createdAt])
+}
+
+model KnowledgeDocument {
+  id String @id
+  title String
+  filename String
+  format String
+  text String @db.Text
+  contentHash String @unique
+  version Int @default(1)
+  status String @default("DRAFT")
+  uploadedById Int?
+  uploadedBy User? @relation("KnowledgeUploaded",fields:[uploadedById],references:[id],onDelete:SetNull)
+  approvedById Int?
+  approvedBy User? @relation("KnowledgeApproved",fields:[approvedById],references:[id],onDelete:SetNull)
+  approvedAt DateTime?
+  createdAt DateTime @default(now())
+  chunks KnowledgeChunk[]
+  @@index([status])
+}
+model KnowledgeChunk {
+  id String @id
+  documentId String
+  document KnowledgeDocument @relation(fields:[documentId],references:[id],onDelete:Cascade)
+  ordinal Int
+  text String @db.Text
+  searchText String @db.Text
+  @@unique([documentId,ordinal])
 }

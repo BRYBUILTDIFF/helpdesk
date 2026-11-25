@@ -1,3 +1,4 @@
+import SimulationSources from './Modules/SimulationSources';
 import ModalCloseButton from '../../components/ModalCloseButton';
 import { claimCatalogWalkthrough } from "../../utils/walkthroughHistory";
 import { plainDescription } from "../../utils/plainDescription";
@@ -311,6 +312,7 @@ useEffect(() => {
                     </button>
                   ))}
                 </div>
+                <SimulationSources key={activeSimId} moduleId={activeSimId} stepIndex={simStep}/>
               </aside>
 
               <section className="sim-runtime-canvas">
@@ -331,6 +333,7 @@ useEffect(() => {
                     >{plainDescription(currentSim.steps[simStep].desc)}</div>
                 </div>
 
+                
                 <div className="sim-runtime-terminal">
                   <div className="sim-preview-terminal-head">
                     <span className="dot red" />

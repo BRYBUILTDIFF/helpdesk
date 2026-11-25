@@ -32,7 +32,8 @@ async function getDraft(req,res,next){try{
 async function createDraft(req, res, next) { try {
   const module = req.body.moduleId ? await getModuleById(req.body.moduleId) : null;
   if (req.body.moduleId && !module) throw fail(404, 'Module not found.');
-  const input = module ? { ...module, moduleId: module.id, generation: { baseRevision: module.revision } } : req.body;
+  const stored = module ? await prisma.simulationModule.findUnique({where:{id:module.id},select:{provenance:true}}) : null;
+  const input = module ? { ...module, moduleId: module.id, generation: { baseRevision: module.revision, ...(stored?.provenance?.rag ? {rag:stored.provenance.rag} : {}) } } : {...req.body,generation:undefined};
   return res.status(201).json({ draft: await createStoredDraft(req.user.id, input) });
 } catch (e) { next(e); } }
 async function updateDraft(req, res, next) { try {

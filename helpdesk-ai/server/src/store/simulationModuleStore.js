@@ -30,6 +30,8 @@ function normalizeSimulationStep(step, index) {
     expectedOutput: typeof step?.expectedOutput === "string" ? safeText(step.expectedOutput) : undefined,
     type: String(step?.type || "command"),
     actionId: String(step?.actionId || ""),
+    supportType: step?.supportType === 'ai-added' ? 'ai-added' : 'source-backed',
+    sourceIds: Array.isArray(step?.sourceIds) ? [...new Set(step.sourceIds.filter(id=>typeof id === "string" && /^S[1-6]$/.test(id)))].slice(0,6) : [],
     expectedCommands: typeof step?.command === "string" ? (step.command.trim() ? [safeText(step.command)] : []) : Array.isArray(step?.expectedCommands) ? step.expectedCommands.slice(0, 12).map(safeText) : [],
     screen,
     action,
@@ -107,7 +109,7 @@ function buildPayload(payload = {}) {
 
 async function listModules(options = {}) {
   const modules = await prisma.simulationModule.findMany({ where: options.onlyEnabled ? { enabled: true } : undefined, orderBy: { createdAt: "desc" } });
-  return modules.map(mapDbModule);
+  return modules.map(module => ({...mapDbModule(module),...(!options.onlyEnabled && module.provenance ? {provenance:module.provenance} : {})}));
 }
 async function getModuleById(id) {
   const module = await prisma.simulationModule.findUnique({ where: { id: String(id || "") } });
@@ -150,7 +152,8 @@ async function createModule(payload = {}) {
     try {
       const created=await prisma.$transaction(async tx=>{
         const testReceiptId=await checkedReceipt(tx,payload,normalized.simulation,terminal && normalized.enabled);
-        const module=await tx.simulationModule.create({data:{...normalized,id:attempt===1?base:base+'-'+attempt,simulation:normalized.simulation?jsonValue(normalized.simulation):undefined,createdById:payload.testedById||null,updatedById:payload.testedById||null,publishedAt:normalized.enabled?new Date():null}});
+        const provenance=await require('../services/ragPublication').publicationProvenance(tx,payload,normalized.simulation);
+        const module=await tx.simulationModule.create({data:{...normalized,...(provenance?{provenance:jsonValue(provenance)}:{}),id:attempt===1?base:base+'-'+attempt,simulation:normalized.simulation?jsonValue(normalized.simulation):undefined,createdById:payload.testedById||null,updatedById:payload.testedById||null,publishedAt:normalized.enabled?new Date():null}});
         await finishDraft(tx,payload,module.id,normalized.simulation);
         await saveRevision(tx,module,payload.testedById,testReceiptId);
         return module;
@@ -180,7 +183,8 @@ async function updateModule(id, patch = {}) {
     if(requiresTest)require('../services/terminalRuntime').assertDefinition(target);
     const testReceiptId=await checkedReceipt(tx,patch,target,requiresTest);
     if(data.simulation)data.simulation=jsonValue(data.simulation);
-    const module=await tx.simulationModule.update({where:{id:current.id},data:{...data,revision:{increment:1},updatedById:patch.testedById||null,...(data.enabled===true&&!current.enabled?{publishedAt:new Date()}:{})}});
+    const provenance=await require('../services/ragPublication').publicationProvenance(tx,patch,target,current);
+    const module=await tx.simulationModule.update({where:{id:current.id},data:{...data,...(provenance?{provenance:jsonValue(provenance)}:{}),revision:{increment:1},updatedById:patch.testedById||null,...(data.enabled===true&&!current.enabled?{publishedAt:new Date()}:{})}});
     await finishDraft(tx,patch,module.id,target,current.revision);
     await saveRevision(tx,module,patch.testedById,testReceiptId);
     return module;

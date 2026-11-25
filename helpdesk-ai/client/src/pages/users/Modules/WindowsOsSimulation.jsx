@@ -1,3 +1,4 @@
+import SimulationSources from './SimulationSources';
 import { useCallback, useEffect, useRef, useState } from "react";
 import SimulationWalkthrough from "./SimulationWalkthrough";
 
@@ -246,6 +247,7 @@ export default function WindowsOsSimulation({ api, moduleId, chatSessionId, titl
             </button>)}
           </div> : <p className="windows-os-no-steps">This module does not include guided steps yet.</p>}
           <div className="windows-os-help-card"><strong>Working through the guide</strong><span>Follow each step carefully. You can navigate back and forth between steps at any time.</span></div>
+          {!testMode?<SimulationSources key={moduleId} moduleId={moduleId} stepIndex={activeStep}/>:null}
         </aside>
         <section inert={!desktopRevealed ? "" : undefined} className="windows-os-desktop">
           {currentStep ? <div className="windows-os-instruction">

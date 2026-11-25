@@ -1,3 +1,6 @@
+import PromptQueueTable from './PromptQueueTable';
+﻿import KnowledgeSourcesPage from './KnowledgeSourcesPage';
+import RagSourcePanel, {SourceReviewConfirmation} from './RagSourcePanel';
 import AuditLogPage from './AuditLogPage';
 import AdminSecurityGate from './AdminSecurityGate';
 import { useDraftAutosave } from './useDraftAutosave';
@@ -36,6 +39,7 @@ const PAGE_META = {
   overview: { title: "Overview", nav: "Overview" },
   users: { title: "User Management", nav: "User Management" },
   policy: { title: "Policy Monitor", nav: "Policy Monitor" },
+  knowledge: { title: "Knowledge Sources", nav: "Knowledge Sources" },
   sims: { title: "Simulation Modules", nav: "Simulation Modules" },
   audit: { title: "Audit Log", nav: "Audit Log" }
 };
@@ -272,6 +276,7 @@ function getModuleSimulationDefinition(module) {
 }
 
 function NavIcon({ id }) {
+  if(id==='knowledge')return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM9 7h6M9 11h6M9 15h4" /></svg>;
   if(id==='audit')return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h11v18H5V7M8 3v4H5M9 11h6M9 15h6" /></svg>;
   if (id === "overview") {
     return (
@@ -318,7 +323,7 @@ function PaginationControls({ page, pageCount, total, itemLabel, onPageChange })
       <span className="pagination-summary">Showing {total} {itemLabel} · Page {page} of {pageCount}</span>
       <div className="pagination-buttons" aria-label={`${itemLabel} pagination`}>
         <button type="button" className="pagination-btn" onClick={() => onPageChange(page - 1)} disabled={page === 1}>Previous</button>
-        {firstPage > 1 ? <><button type="button" className="pagination-btn" onClick={() => onPageChange(1)}>1</button><span className="pagination-ellipsis">…</span></> : null}
+        {firstPage > 1 ? <><button type="button" className="pagination-btn" onClick={() => onPageChange(1)}>1</button><span className="pagination-ellipsis">â€¦</span></> : null}
         {pages.map((pageNumber) => (
           <button
             key={pageNumber}
@@ -330,7 +335,7 @@ function PaginationControls({ page, pageCount, total, itemLabel, onPageChange })
             {pageNumber}
           </button>
         ))}
-        {lastPage < pageCount ? <><span className="pagination-ellipsis">…</span><button type="button" className="pagination-btn" onClick={() => onPageChange(pageCount)}>{pageCount}</button></> : null}
+        {lastPage < pageCount ? <><span className="pagination-ellipsis">â€¦</span><button type="button" className="pagination-btn" onClick={() => onPageChange(pageCount)}>{pageCount}</button></> : null}
         <button type="button" className="pagination-btn" onClick={() => onPageChange(page + 1)} disabled={page === pageCount}>Next</button>
       </div>
     </div>
@@ -446,6 +451,7 @@ function AdminPageContent() {
   const [modulePreviewStep, setModulePreviewStep] = useState(0);
   const [modulePreviewSurface, setModulePreviewSurface] = useState("windows-terminal");
   const [moduleDraftMeta, setModuleDraftMeta] = useState(null);
+  const [sourceReviewConfirmed,setSourceReviewConfirmed] = useState(false);
   const [savedDrafts,setSavedDrafts]=useState([]);
   const draftAutosave=useDraftAutosave(api);
   const [moduleDraftError, setModuleDraftError] = useState("");
@@ -687,7 +693,7 @@ function AdminPageContent() {
     weekEndDate.setDate(weekEndDate.getDate() + 6);
     const dateFormat = { month: "short", day: "numeric", year: "numeric" };
     return {
-      dateRange: `${weekStartDate.toLocaleDateString([], dateFormat)} – ${weekEndDate.toLocaleDateString([], dateFormat)}`,
+      dateRange: `${weekStartDate.toLocaleDateString([], dateFormat)} â€“ ${weekEndDate.toLocaleDateString([], dateFormat)}`,
       labels: points.map((point) => point.label),
       counts: points.map((point) => point.count)
     };
@@ -1230,7 +1236,8 @@ function AdminPageContent() {
       catch(error){window.alert(safeError(error));return;}
     }
     draftAutosave.initialize(record);
-    if(record){preview=record.simulation;options={...options,moduleId:record.moduleId,edit:true,draftMeta:{...options.draftMeta,draftId:record.id,title:record.title,category:record.category,sourcePrompt:record.sourcePrompt || undefined,baseRevision:record.generation?.baseRevision,initialTest:record.test}};}
+    setSourceReviewConfirmed(false);
+    if(record){preview=record.simulation;options={...options,moduleId:record.moduleId,edit:true,draftMeta:{...options.draftMeta,draftId:record.id,title:record.title,category:record.category,sourcePrompt:record.sourcePrompt || undefined,baseRevision:record.generation?.baseRevision,rag:record.generation?.rag,initialTest:record.test}};}
     setPreviewVerifiedModuleId(options.moduleId || null);
     setModuleEditorOpen(Boolean(options.edit || options.draftMeta));
     if (!preview || !Array.isArray(preview.steps) || preview.steps.length === 0) {
@@ -1254,87 +1261,6 @@ function AdminPageContent() {
     await loadModules();
   };
 
-  const createModuleFromPromptInsight = async (insight) => {
-    if (!insight?.samplePrompt) {
-      return;
-    }
-    const key = `module-draft-from-prompt-${insight.normalized || insight.samplePrompt}`;
-    setPendingKey(key);
-    try {
-      const res = await api.post("/api/admin/simulation-modules/draft", {
-        mode: "from_prompt",
-        sourcePrompt: insight.samplePrompt,
-        occurrences: Number(insight.occurrences || 1),
-        preferredSurface: insight.recommendedSurface
-      });
-      const draft = res.data?.draft;
-      if (!draft) {
-        throw new Error("Unable to generate simulation draft.");
-      }
-      openModulePreview(getModuleSimulationDefinition(draft), {
-        surface: draft.recommendedSurface || insight.recommendedSurface || draft?.simulation?.terminalType,
-        draftRecord: res.data?.draftRecord,
-        draftMeta: {
-          mode: "from_prompt",
-          sourcePrompt: insight.samplePrompt,
-          occurrences: Number(insight.occurrences || 1),
-          generationNotice: res.data?.generationNotice,
-          title: draft.title,
-          category: draft.category
-        }
-      });
-    } catch (err) {
-      window.alert(safeError(err));
-    } finally {
-      setPendingKey("");
-    }
-  };
-
-  const disregardPromptInsight = async (insight) => {
-    const prompt = String(insight?.samplePrompt || "").trim();
-    if (!prompt) {
-      return;
-    }
-    const key = `module-disregard-prompt-${insight.normalized || prompt}`;
-    setPendingKey(key);
-    try {
-      await api.post("/api/admin/simulation-modules/prompt-insights/disregard", {
-        sourcePrompt: prompt,
-        insightKey: insight.insightKey
-      });
-      setPromptInsights((prev) =>
-        prev.filter((item) => item.normalized !== insight.normalized && item.samplePrompt !== prompt)
-      );
-    } catch (err) {
-      window.alert(safeError(err));
-    } finally {
-      setPendingKey("");
-    }
-  };
-
-  const disregardAllPromptInsights = async () => {
-    if (pendingKey || promptInsightsLoading || !promptInsights.length) return;
-    const suggestions = [...promptInsights];
-    if (!window.confirm(`Disregard all ${suggestions.length} suggestions in the queue, including those hidden by search?`)) return;
-    setPendingKey("module-disregard-all");
-    setPromptInsightsError("");
-    let completed = 0;
-    try {
-      for (const insight of suggestions) {
-        await api.post("/api/admin/simulation-modules/prompt-insights/disregard", {
-          sourcePrompt: insight.samplePrompt,
-          insightKey: insight.insightKey
-        });
-        completed += 1;
-        setPromptInsights((prev) => prev.filter((item) => item !== insight));
-      }
-    } catch (err) {
-      setPromptInsightsError(`${completed} of ${suggestions.length} suggestions disregarded. Remaining suggestions are still in the queue. ${safeError(err)}`);
-    } finally {
-      setPendingKey("");
-    }
-  };
-
   const saveModuleDraft = async () => {
     if (!moduleDraftMeta || !modulePreview) {
       return;
@@ -1350,7 +1276,7 @@ function AdminPageContent() {
       const savedDraft=await draftAutosave.flush();
       const payload={
         mode: "manual",
-        draftId:savedDraft?.id,draftVersion:savedDraft?.version,baseRevision:moduleDraftMeta.baseRevision,
+        draftId:savedDraft?.id,draftVersion:savedDraft?.version,baseRevision:moduleDraftMeta.baseRevision,sourceReviewConfirmed,
         title: moduleDraftMeta.title,
         category: moduleDraftMeta.category,
         sourcePrompt: moduleDraftMeta.sourcePrompt,
@@ -1408,7 +1334,6 @@ function AdminPageContent() {
     downloadCsv(`policy-events-${stamp}.csv`, rows);
   };
 
-  const maxCompletions = Math.max(1, ...modules.map((m) => Number(m.completions || 0)));
   const promptInsightFeed = useMemo(() => {
     return Array.isArray(promptInsights) ? promptInsights : [];
   }, [promptInsights]);
@@ -1420,9 +1345,7 @@ function AdminPageContent() {
     }
     return promptInsightFeed.filter((item) => {
       return (
-        String(item.samplePrompt || "").toLowerCase().includes(query) ||
-        String(item.suggestedCategory || "").toLowerCase().includes(query) ||
-        String(item.recommendedSurfaceLabel || item.recommendedSurface || "").toLowerCase().includes(query)
+        String(item.samplePrompt || "").toLowerCase().includes(query)
       );
     });
   }, [promptInsightFeed, promptInsightQuery]);
@@ -1452,7 +1375,7 @@ function AdminPageContent() {
   const previewRuntimeHint = stripHtml(previewCurrentStep.action || previewCurrentStep.desc || "");
   const previewFullName = [userForm.firstName.trim(), userForm.lastName.trim()].filter(Boolean).join(" ");
   const previewInitials =
-    `${userForm.firstName.trim().charAt(0)}${userForm.lastName.trim().charAt(0)}`.trim().toUpperCase() || "—";
+    `${userForm.firstName.trim().charAt(0)}${userForm.lastName.trim().charAt(0)}`.trim().toUpperCase() || "â€”";
   const showPasswordMatch =
     userModalMode === "create" && !useDefaultPassword && userForm.confirmPassword.trim().length > 0;
   const passwordMatch = userForm.password === userForm.confirmPassword;
@@ -1569,6 +1492,7 @@ function AdminPageContent() {
             {loading && activePage !== "audit" ? <div className="admin-alert">Loading admin data...</div> : null}
 
             {activePage === "audit" ? <AuditLogPage /> : null}
+            {activePage === "knowledge" ? <KnowledgeSourcesPage onGenerated={async data=>{setActivePage('sims');await openModulePreview(data.draft.simulation,{draftRecord:data.draftRecord,draftMeta:{mode:'from_prompt',sourcePrompt:data.sourcePrompt,generationNotice:data.generationNotice,title:data.draft.title,category:data.draft.category}});}}/> : null}
             {!loading && activePage === "overview" ? (
               <div className="page active">
                 <div className="admin-tab-intro"><h1>Activity at a glance</h1><p>Review usage, recent activity, and simulation completions.</p></div>
@@ -1576,7 +1500,7 @@ function AdminPageContent() {
                   <div className="metric-card">
                     <div className="metric-label">Users</div>
                     <div className="metric-val">{userStats.total}</div>
-                    <div className="metric-sub">{userStats.active} active Â· {userStats.admins} admin</div>
+                    <div className="metric-sub">{userStats.active} active Ã‚· {userStats.admins} admin</div>
                     <div className="metric-delta delta-up">Active directory synced</div>
                   </div>
                   <div className="metric-card">
@@ -2062,13 +1986,8 @@ function AdminPageContent() {
 
             {!loading && activePage === "sims" ? (
               <div className="page active simulation-modules-page">
-                <div className="policy-kpi-grid">
-                  <div className="policy-kpi-card"><span>Active Modules</span><strong>{moduleStats.enabled}</strong></div>
-                  <div className="policy-kpi-card"><span>Suggestions to Review</span><strong>{promptInsightFeed.length}</strong></div>
-                  <div className="policy-kpi-card"><span>Prompt Variants Grouped</span><strong>{promptInsightFeed.reduce((sum, item) => sum + Number(item.similarPromptVariants || 1), 0)}</strong></div>
-                  <div className="policy-kpi-card"><span>Module Completions</span><strong>{moduleStats.completions}</strong></div>
-                </div>
-                {savedDrafts.length ? <section className="saved-simulation-drafts"><h2>Saved drafts</h2><p>Unpublished work saved automatically. Resume a draft to continue editing and testing.</p>{savedDrafts.map(record=><div className="saved-draft-row" key={record.id}><div><strong>{record.title}</strong><span>{record.simulation?.surface} / Updated {new Date(record.updatedAt).toLocaleString()}</span></div><button type="button" className="btn-sm" onClick={()=>openModulePreview(record.simulation,{draftRecord:record})}>Resume draft</button><button type="button" className="btn-sm btn-danger" onClick={async()=>{try{await api.delete('/api/admin/simulation-drafts/'+record.id);await loadModules();}catch(error){window.alert(safeError(error));}}}>Discard</button></div>)}</section>:null}
+                <header className="module-library-heading"><div><h1>Simulation library</h1><p>Manage the simulations available for students to practice.</p></div><p className="module-library-summary"><strong>{moduleStats.enabled}</strong> active<span aria-hidden="true"> / </span><strong>{moduleStats.completions}</strong> completions</p></header>
+                {simulationView === "modules" && savedDrafts.length ? <section className="saved-simulation-drafts"><h2>Saved drafts</h2><p>Unpublished work saved automatically. Resume a draft to continue editing and testing.</p>{savedDrafts.map(record=><div className="saved-draft-row" key={record.id}><div><strong>{record.title}</strong><span>{record.simulation?.surface} / Updated {new Date(record.updatedAt).toLocaleString()}</span></div><button type="button" className="btn-sm" onClick={()=>openModulePreview(record.simulation,{draftRecord:record})}>Resume draft</button><button type="button" className="btn-sm btn-danger" onClick={async()=>{try{await api.delete('/api/admin/simulation-drafts/'+record.id);await loadModules();}catch(error){window.alert(safeError(error));}}}>Discard</button></div>)}</section>:null}
                 <div className="sim-view-tabs" role="tablist" aria-label="Simulation module views">
                   <button type="button" className={simulationView === "modules" ? "active" : ""} onClick={() => setSimulationView("modules")} role="tab" aria-selected={simulationView === "modules"}>Modules <span>{moduleStats.total}</span></button>
                   <button type="button" className={simulationView === "suggestions" ? "active" : ""} onClick={() => setSimulationView("suggestions")} role="tab" aria-selected={simulationView === "suggestions"}>Suggestion Queue <span>{promptInsightFeed.length}</span></button>
@@ -2077,12 +1996,11 @@ function AdminPageContent() {
                   {simulationView === "suggestions" ? (
                     <>
                       <div className="sim-workspace-head sim-prompt-head">
-                        <div><div className="panel-title">Prompt Monitoring</div><p className="sim-sample-note">Suggestions reflect the latest 200 policy events, not lifetime totals.</p></div>
+                        <div><div className="panel-title">Common user requests</div><p className="sim-sample-note">Most asked IT help requests, highest count first. Based on the latest 200 policy events.</p></div>
                         <div className="sim-prompt-toolbar">
-                          <input name="admin-page-prompt-insight-query" className="policy-search-input" value={promptInsightQuery} onChange={(event) => setPromptInsightQuery(event.target.value)} placeholder="Search prompt patterns" aria-label="Search prompt patterns" />
+                          <input name="admin-page-prompt-insight-query" className="policy-search-input" value={promptInsightQuery} onChange={(event) => setPromptInsightQuery(event.target.value)} placeholder="Search user requests" aria-label="Search user requests" />
                           <div className="sim-prompt-toolbar-actions">
                           <button type="button" className="btn-sm" disabled={promptInsightsLoading || Boolean(pendingKey)} onClick={loadPromptInsights}>{promptInsightsLoading ? "Refreshing..." : "Refresh"}</button>
-                          <button type="button" className="btn-sm btn-danger" disabled={promptInsightsLoading || Boolean(pendingKey) || !promptInsightFeed.length} onClick={disregardAllPromptInsights}>{pendingKey === "module-disregard-all" ? "Disregarding all..." : "Disregard all"}</button>
                           </div>
                         </div>
                       </div>
@@ -2092,56 +2010,10 @@ function AdminPageContent() {
                         <SimulationEmptyState
                           type="queue"
                           title="No prompt patterns to review"
-                          message="Eligible user requests will appear here once the system detects a simulation-ready pattern."
+                          message="Common eligible IT help requests will appear here as users ask the AI for assistance."
                         />
                       ) : (
-                        filteredPromptInsights.map((insight) => {
-                          const createKey = `module-draft-from-prompt-${insight.normalized || insight.samplePrompt}`;
-                          const disregardKey = `module-disregard-prompt-${insight.normalized || insight.samplePrompt}`;
-                          const creating = pendingKey === createKey;
-                          const disregarding = pendingKey === disregardKey;
-                          const isSample = Boolean(insight.isSample);
-                          return (
-                            <details className="sim-suggestion-row" key={insight.normalized || insight.samplePrompt}>
-                              <summary>
-                                <div className="sim-suggestion-main"><strong>{insight.samplePrompt}</strong><span>{insight.suggestedCategory} · {insight.recommendedSurfaceLabel || formatSurfaceLabel(insight.recommendedSurface)}</span></div>
-                                <div className="sim-suggestion-count"><strong>{insight.occurrences}</strong><span>recent occurrences</span></div>
-                                <svg className="sim-row-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-                              </summary>
-                              <div className="sim-suggestion-details">
-                                <div className="sim-prompt-text">{insight.samplePrompt}</div>
-                              <div className="sim-prompt-meta">
-                                <span>{insight.occurrences} recent occurrences</span>
-                                {insight.similarPromptVariants > 1 ? <span>{insight.similarPromptVariants} similar prompts</span> : null}
-                                <span>{insight.uniqueUsers} users</span>
-                                <span>{insight.suggestedCategory}</span>
-                                <span>{insight.recommendedSurfaceLabel || formatSurfaceLabel(insight.recommendedSurface)}</span>
-                                <span>Last {formatRelative(insight.lastSeen)}</span>
-                              </div>
-                              <div className="sim-prompt-actions">
-                                <button
-                                  type="button"
-                                  className="btn-sm create-user-btn"
-                                  disabled={promptInsightsLoading || Boolean(pendingKey)}
-                                  onClick={() => createModuleFromPromptInsight(insight)}
-                                >
-                                  {creating ? "Generating..." : "Generate AI Draft"}
-                                </button>
-                                {!isSample ? (
-                                  <button
-                                    type="button"
-                                    className="btn-sm btn-danger"
-                                    disabled={promptInsightsLoading || Boolean(pendingKey)}
-                                    onClick={() => disregardPromptInsight(insight)}
-                                  >
-                                    {disregarding ? "Disregarding..." : "Disregard"}
-                                  </button>
-                                ) : null}
-                              </div>
-                              </div>
-                            </details>
-                          );
-                        })
+                        <PromptQueueTable insights={filteredPromptInsights} formatRelative={formatRelative} />
                       )}
                       </div>
                     </>
@@ -2155,27 +2027,26 @@ function AdminPageContent() {
                         <select name="admin-page-module-status-filter" value={moduleStatusFilter} onChange={(event) => setModuleStatusFilter(event.target.value)} aria-label="Filter modules by status"><option value="all">All statuses</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select>
                       </div>
                     </div>
-                    <div className="sim-grid">
+                    <div className="sim-grid module-library-list">
                       {filteredModules.length === 0 ? (
                         <SimulationEmptyState
                           type="modules"
                           title={moduleStats.total === 0 ? "No simulation modules yet" : "No matching modules"}
-                          message={moduleStats.total === 0 ? "Create a module from the Suggestion Queue to start the library." : "Try changing the status filter to see available modules."}
+                          message={moduleStats.total === 0 ? "Create a source-backed simulation in Knowledge Sources to start the library." : "Try changing the status filter to see available modules."}
                         />
                       ) : filteredModules.map((module) => {
                         const completions = Number(module.completions || 0);
-                        const progressWidth = Math.round((completions / maxCompletions) * 100);
                         const pending = pendingKey === `module-${module.id}`;
                         const deleting = pendingKey === `module-delete-${module.id}`;
                         const moduleSimulation = getModuleSimulationDefinition(module);
                         const canTestWindows = moduleSimulation.surface === "windows-os";
 
                         return (
-                          <div className="sim-card" key={module.id}>
+                          <div className="sim-card module-library-row" key={module.id}>
                             <div className="sim-card-header">
                               <div>
                                 <div className="sim-title">{module.title}</div>
-                                <div className="sim-cat">{module.category}</div>
+                                <div className="sim-cat">{formatSurfaceLabel(moduleSimulation.surface)}</div>
                                 {module.validationErrors?.length ? <p className="admin-alert error">Needs repair: {module.validationErrors[0]}</p> : null}
                               </div>
                               <div className="sim-controls">
@@ -2185,15 +2056,10 @@ function AdminPageContent() {
                               </div>
                             </div>
 
-                            <div className="progress-bar"><div className="progress-fill" style={{ width: `${progressWidth}%` }} /></div>
-
                             <div className="sim-stats">
                               <div className="sim-stat"><strong>{completions}</strong> completions</div>
-                              {module.attemptMetrics ? <div className="sim-stat">Verified runtime: {module.attemptMetrics.started} started ? {module.attemptMetrics.completed} completed ? {module.attemptMetrics.active} active ? {module.attemptMetrics.ended} ended ? {module.attemptMetrics.expired} expired ? {module.attemptMetrics.mistakes} mistakes</div> : null}
-                              <div className="sim-stat"><strong>{Number(module.avgSteps || 0).toFixed(1)}</strong> avg steps</div>
                             </div>
 
-                            <ModuleRevisionHistory moduleId={module.id} />
                             <div className="sim-actions">
                               <button
                                 type="button"
@@ -2205,11 +2071,13 @@ function AdminPageContent() {
                                   })
                                 }
                               >
-                                View Simulation
+                                View
                               </button>
                               {["windows-terminal", "mac-terminal", "windows-os", "mac-os"].includes(moduleSimulation.surface) ? (
-                                <button type="button" className="btn-sm" onClick={() => openModulePreview(moduleSimulation, {surface:moduleSimulation.surface,moduleId:module.id,edit:true})}>Edit Simulation</button>
+                                <button type="button" className="btn-sm" onClick={() => openModulePreview(moduleSimulation, {surface:moduleSimulation.surface,moduleId:module.id,edit:true})}>Edit</button>
                               ) : null}
+                              <details className="module-more"><summary aria-label={"More actions for " + module.title}>More <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary><div className="module-more-options">
+                              <ModuleRevisionHistory moduleId={module.id} />
                               {canTestWindows ? (
                                 <button
                                   type="button"
@@ -2235,6 +2103,7 @@ function AdminPageContent() {
                               >
                                 {deleting ? "Deleting..." : "Delete"}
                               </button>
+                              </div></details>
                             </div>
                           </div>
                         );
@@ -2271,20 +2140,22 @@ function AdminPageContent() {
             {moduleDraftMeta?.generationNotice && !moduleDraftMeta.generationNotice.startsWith('AI-generated draft:') ? <p className="admin-generation-notice" role="status">{moduleDraftMeta.generationNotice}</p> : null}
             {moduleDraftError ? <div className="admin-alert error">{moduleDraftError}</div> : null}
 
+
             {moduleEditorOpen && ["windows-terminal", "mac-terminal"].includes(modulePreviewSurface) ? (
-              <TerminalModuleTester key={previewVerifiedModuleId || moduleDraftMeta?.sourcePrompt || modulePreview.title} definition={{...modulePreview,surface:modulePreviewSurface,terminalType:modulePreviewSurface}} existing={Boolean(previewVerifiedModuleId)} initialTest={moduleDraftMeta?.initialTest} onChange={draftAutosave.change} saveStatus={draftAutosave.status} onSave={async (simulation,testToken) => {
+              <TerminalModuleTester key={previewVerifiedModuleId || moduleDraftMeta?.sourcePrompt || modulePreview.title} definition={{...modulePreview,surface:modulePreviewSurface,terminalType:modulePreviewSurface}} existing={Boolean(previewVerifiedModuleId)} evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} reviewRequired={!!moduleDraftMeta?.rag} reviewed={sourceReviewConfirmed} reviewControl={moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={setSourceReviewConfirmed}/>:null} initialTest={moduleDraftMeta?.initialTest} sources={moduleDraftMeta?.rag?.sources} onChange={next=>{setModulePreview(next);setSourceReviewConfirmed(false);draftAutosave.change(next);}} saveStatus={draftAutosave.status} onSave={async (simulation,testToken) => {
                 const savedDraft=await draftAutosave.flush();
-                const draftInfo={draftId:savedDraft?.id,draftVersion:savedDraft?.version,baseRevision:moduleDraftMeta?.baseRevision};
+                const draftInfo={draftId:savedDraft?.id,draftVersion:savedDraft?.version,baseRevision:moduleDraftMeta?.baseRevision,sourceReviewConfirmed};
                 if(previewVerifiedModuleId) await api.patch(`/api/admin/simulation-modules/${previewVerifiedModuleId}`, {simulation,testToken,enabled:true,...draftInfo});
                 else await api.post("/api/admin/simulation-modules", {mode:"manual",title:moduleDraftMeta?.title || simulation.title,category:moduleDraftMeta?.category || "General",sourcePrompt:moduleDraftMeta?.sourcePrompt,simulation,testToken,enabled:false,...draftInfo});
                 await closeModulePreview({skipFlush:true}); await loadModules();
               }} />
             ) : isDraftPreview ? (
               <>
-                <DesktopModuleEditor definition={modulePreview} busy={pendingKey === 'module-save-draft'} onChange={next => {setModulePreview(next);draftAutosave.change(next);setModuleDraftError('');}} />
+                <DesktopModuleEditor evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} definition={modulePreview} sources={moduleDraftMeta?.rag?.sources} busy={pendingKey === 'module-save-draft'} onChange={next => {setModulePreview(next);setSourceReviewConfirmed(false);draftAutosave.change(next);setModuleDraftError('');}} />
 
                 <div className="sim-preview-footer">
                   <div className="sim-preview-footer-center">
+                    {moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={setSourceReviewConfirmed}/>:null}
                     <div className="sim-preview-step-dots" aria-hidden="true">
                       {previewSteps.map((step, index) => (
                         <span
@@ -2302,7 +2173,7 @@ function AdminPageContent() {
                     <button
                       type="button"
                       className="btn-sm sim-preview-approve"
-                      disabled={pendingKey === "module-save-draft"}
+                      disabled={pendingKey === "module-save-draft" || (!!moduleDraftMeta?.rag && !sourceReviewConfirmed)}
                       onClick={saveModuleDraft}
                     >
                       {pendingKey === "module-save-draft" ? "Saving..." : "Approve & Save Module"}
@@ -2458,6 +2329,7 @@ function AdminPageContent() {
             aria-labelledby="policy-confirm-title"
             onClick={(event) => event.stopPropagation()}
           >
+            <ModalCloseButton className="admin-confirm-dismiss" aria-label="Close policy confirmation" disabled={pendingKey === policyConfirmationPendingKey} onClick={()=>setPolicyActionConfirmation(null)}/>
             <div className="policy-confirm-icon" aria-hidden="true">
               {policyActionConfirmation.action === "delete" ? (
                 <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" /></svg>
@@ -2595,6 +2467,7 @@ function AdminPageContent() {
       {userPendingDeletion ? (
         <div className="admin-modal-overlay admin-delete-confirm-overlay" onClick={() => setUserPendingDeletion(null)}>
           <section className="admin-delete-confirm-card" role="dialog" aria-modal="true" aria-labelledby="delete-user-title" onClick={(event) => event.stopPropagation()}>
+            <ModalCloseButton className="admin-confirm-dismiss" aria-label="Close delete user confirmation" disabled={pendingKey === `user-delete-${userPendingDeletion.id}`} onClick={()=>setUserPendingDeletion(null)}/>
             <div className="admin-delete-confirm-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" /></svg>
             </div>
@@ -2892,3 +2765,4 @@ function AdminPageContent() {
     </div>
   );
 }
+

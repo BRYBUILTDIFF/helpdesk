@@ -45,5 +45,8 @@ async function testDefinition(req,res,next){try{
  let receipt = null;
  if(completed) receipt = await prisma.simulationTestReceipt.create({data:{actorId:req.user.id,definitionHash:runtime.definitionHash(definition),definition:JSON.parse(JSON.stringify(definition)),events:require('../utils/redact').redactObject(current.events),mistakes,stepsCompleted:index,expiresAt:new Date(Date.now()+3600000)}});
  return res.json({definition,nextStep:index,state:current.state,events:current.events,mistakes,output,completed,testToken:receipt?runtime.signTest(definition,req.user.id,receipt.id):null,testReceiptId:receipt?.id||null});
-}catch(e){next(e);}}
+}catch(e){
+ if(e.status===400&&Array.isArray(e.validationErrors))return res.status(400).json({code:'SIMULATION_VALIDATION_FAILED',message:e.validationErrors.join(' '),validationErrors:e.validationErrors});
+ next(e);
+}}
 module.exports={startAttempt,getAttempt,submitCommand,endAttempt,testDefinition};

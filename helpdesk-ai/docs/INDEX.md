@@ -4,6 +4,7 @@ All project Markdown documentation lives in this folder.
 
 | Document | Purpose |
 | --- | --- |
+| [Admin simulation RAG](ADMIN_RAG_SETUP.md) | Word/TXT knowledge ingestion, full-text retrieval, source review, deployment and verification |
 | [Setup guide](README.md) | Installation, configuration, startup, and API overview |
 | [Generalized use cases](GENERALIZED_USE_CASES.md) | Administrator and User goals, feature scope, and use-case diagrams |
 | [Administrator flowchart](ADMIN_FLOWCHART.md) | Administrator sign-in, feature navigation, and work cycle |

@@ -9,7 +9,7 @@ const commonSteps = [
 ];
 
 export default function AdminDraftWalkthrough({ terminal = false, notice = '' }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState(null);
   const [height, setHeight] = useState(280);

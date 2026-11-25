@@ -1,0 +1,65 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const express=require('express');
+const {once}=require('node:events');
+process.env.NODE_ENV='test';
+process.env.ADMIN_MFA_REQUIRED='false';
+process.env.JWT_ACCESS_SECRET='rag-integration-access-secret-for-local-tests-only';
+process.env.JWT_REFRESH_SECRET='rag-integration-refresh-secret-for-local-tests-only';
+const prisma=require('../src/prisma');
+const runtime=require('../src/services/terminalRuntime');
+const provider=require('../src/utils/openai');
+let providerCalls=0,request;
+provider.getOpenAIClient=()=>({chat:{completions:{create:async input=>{providerCalls++;request=input;const simulation=runtime.accountDefinition();simulation.steps=simulation.steps.map(step=>({...step,sourceIds:['S1']}));return {choices:[{message:{content:JSON.stringify({title:'Account recovery',category:'Account',difficulty:'Easy',simulation})}}]};}}}});
+const {generateAccessToken}=require('../src/utils/jwt');
+test('real PostgreSQL ingestion, full-text retrieval, auth, generation and source-backed publication',async()=>{
+ assert.ok(['localhost','127.0.0.1'].includes(new URL(process.env.DATABASE_URL).hostname));
+ const admin=await prisma.user.create({data:{email:'rag-admin@example.invalid',firstName:'RAG',lastName:'Admin',passwordHash:'unused',role:'ADMIN'}});
+ const user=await prisma.user.create({data:{email:'rag-user@example.invalid',firstName:'RAG',lastName:'User',passwordHash:'unused'}});
+ const app=express();app.use(express.json());app.use('/api/admin',require('../src/routes/admin.routes'));app.use('/api/simulations',require('../src/routes/simulation.routes'));
+ app.use((error,req,res,next)=>res.status(error.status||500).json({message:error.publicMessage||'Internal error'}));
+ const server=app.listen(0,'127.0.0.1');await once(server,'listening');
+ const origin='http://127.0.0.1:'+server.address().port;
+ const tokens={admin:generateAccessToken({id:admin.id,tokenVersion:0}),user:generateAccessToken({id:user.id,tokenVersion:0})};
+ async function api(path,method='GET',body,actor='admin'){
+   const headers={};if(actor)headers.Authorization='Bearer '+tokens[actor];if(body&&!(body instanceof FormData))headers['Content-Type']='application/json';
+   const result=await fetch(origin+path,{method,headers,body:body instanceof FormData?body:body?JSON.stringify(body):undefined});return {status:result.status,body:await result.json()};
+ }
+ const base='/api/admin';
+ try{
+  assert.equal((await api(base+'/knowledge','GET',null,null)).status,401);
+  assert.equal((await api(base+'/knowledge','GET',null,'user')).status,403);
+  const prompt='Windows Terminal unlock locked domain account using PowerShell';
+  const noEvidence=await api(base+'/simulation-modules/draft','POST',{mode:'from_prompt',sourcePrompt:prompt});assert.equal(noEvidence.status,422);assert.equal(providerCalls,0);
+  const text='Windows Terminal PowerShell domain account lockout recovery. Open the simulated administrator session. Inspect the account with Get-ADUser. Unlock with Unlock-ADAccount. Reset the training password with Set-ADAccountPassword. Verify account recovery and test login.';
+  const form=new FormData();form.append('files',new Blob([text]),'account-guide.txt');form.append('files',new Blob(['Unrelated printer guide.']),'printer.txt');form.append('files',new Blob(['legacy']),'old.doc');
+  const upload=await api(base+'/knowledge','POST',form);assert.equal(upload.status,200);assert.equal(upload.body.results.filter(r=>r.ok).length,2);assert.equal(upload.body.results[2].ok,false);
+  const source=upload.body.results[0].document;
+  assert.equal((await api(base+'/knowledge/search','POST',{query:prompt})).body.sources.length,0,'Draft sources must not be retrieved');
+  assert.equal((await api(base+'/knowledge/'+source.id,'PATCH',{status:'APPROVED'})).status,200);
+  const search=await api(base+'/knowledge/search','POST',{query:prompt});assert.ok(search.body.sources.length);assert.equal(search.body.sources[0].documentId,source.id);assert.equal(search.body.sources[0].text,text);
+  const draftResponse=await api(base+'/simulation-modules/draft','POST',{mode:'from_prompt',sourcePrompt:prompt});assert.equal(draftResponse.status,200);
+  const record=draftResponse.body.draftRecord;assert.ok(record.generation.rag.sources.length);assert.deepEqual(JSON.parse(request.messages[1].content).referencePassages[0].sourceId,'S1');
+  assert.deepEqual(record.simulation.steps[0].sourceIds,['S1']);
+  const payload={mode:'manual',title:record.title,category:record.category,simulation:record.simulation,draftId:record.id,draftVersion:record.version};
+  assert.equal((await api(base+'/simulation-modules','POST',payload)).status,409,'Source review cannot be skipped');
+  const saved=await api(base+'/simulation-modules','POST',{...payload,sourceReviewConfirmed:true});assert.equal(saved.status,201);
+  const moduleId=saved.body.module.id;
+  const raw=await prisma.simulationModule.findUnique({where:{id:moduleId}});assert.equal(raw.provenance.rag.sources[0].text,text);
+  const revisions=await api(base+'/simulation-modules/'+moduleId+'/revisions');assert.equal(revisions.body.revisions[0].snapshot.provenance.reviewedById,admin.id);
+  const tested=await api(base+'/simulation-modules/test','POST',{simulation:record.simulation,actions:record.simulation.steps.map((step,i)=>({step:i,kind:step.type,command:step.command||''}))});assert.equal(tested.status,200);assert.ok(tested.body.testToken);
+  await api(base+'/knowledge/'+source.id,'PATCH',{status:'DRAFT'});
+  assert.equal((await api(base+'/simulation-modules/'+moduleId,'PATCH',{enabled:true,testToken:tested.body.testToken,baseRevision:1})).status,409,'Revoked sources must block new publication');
+  await api(base+'/knowledge/'+source.id,'PATCH',{status:'APPROVED'});
+  assert.equal((await api(base+'/simulation-modules/'+moduleId,'PATCH',{enabled:true,testToken:tested.body.testToken,baseRevision:1})).status,200);
+  const student=await api('/api/simulations/modules','GET',null,'user');assert.equal(student.status,200);assert.ok(!JSON.stringify(student.body).includes(text),'Admin source snapshots must not leak in student module listings');
+  const reopened=await api(base+'/simulation-drafts','POST',{moduleId});assert.equal(reopened.status,201);assert.equal(reopened.body.draft.generation.rag.sources[0].text,text);
+  const editedSimulation=structuredClone(reopened.body.draft.simulation);editedSimulation.steps[0].instruction='Review the approved procedure, then open the training administrator session.';
+  const edited=await api(base+'/simulation-drafts/'+reopened.body.draft.id,'PATCH',{version:reopened.body.draft.version,simulation:editedSimulation});assert.equal(edited.status,200);assert.deepEqual(edited.body.draft.simulation.steps[0].sourceIds,['S1']);
+  assert.equal((await api(base+'/simulation-modules/'+moduleId,'PATCH',{simulation:edited.body.draft.simulation,enabled:false,sourceReviewConfirmed:true})).status,409,'Direct edits cannot discard source provenance');
+  const updated=await api(base+'/simulation-modules/'+moduleId,'PATCH',{simulation:edited.body.draft.simulation,enabled:false,draftId:edited.body.draft.id,draftVersion:edited.body.draft.version,baseRevision:2,sourceReviewConfirmed:true});assert.equal(updated.status,200);
+  const retained=await prisma.simulationModule.findUnique({where:{id:moduleId}});assert.equal(retained.provenance.rag.sources[0].text,text);assert.equal(retained.revision,3);
+  await api(base+'/knowledge/'+source.id,'PATCH',{status:'ARCHIVED'});assert.equal((await api(base+'/knowledge/search','POST',{query:prompt})).body.sources.length,0);
+  const duplicate=new FormData();duplicate.append('files',new Blob([text]),'duplicate.txt');const duplicateResponse=await api(base+'/knowledge','POST',duplicate);assert.equal(duplicateResponse.body.results[0].ok,false);
+ }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await prisma.$disconnect();}
+});

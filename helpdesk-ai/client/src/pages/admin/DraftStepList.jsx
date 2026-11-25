@@ -26,7 +26,7 @@ export default function DraftStepList({ steps, selected, busy, minimum = 1, veri
             requestAnimationFrame(() => list.querySelectorAll('.sim-runtime-step')[to]?.focus());
           }}>
           <span className="sim-runtime-step-num">{index + 1}</span>
-          <span className="sim-runtime-step-copy"><span className="sim-runtime-step-title">{step.title || 'Untitled step'}</span><span className="sim-runtime-step-sub">{index < verified ? 'Verified' : step.command || step.action || step.instruction}</span></span>
+          <span className="sim-runtime-step-copy"><span className="sim-runtime-step-title">{step.title || 'Untitled step'}</span>{step.supportType==='ai-added'?<span className="sim-runtime-step-sub">AI-added: requires review</span>:null}<span className="sim-runtime-step-sub">{index < verified ? 'Verified' : step.command || step.action || step.instruction}</span></span>
         </button>
         <button className="draft-step-delete" type="button" disabled={busy || steps.length <= minimum} onClick={() => onRemove(index)} aria-label={`Delete step ${index + 1}: ${step.title || 'Untitled step'}`} title={steps.length <= minimum ? `Keep at least ${minimum} step${minimum === 1 ? '' : 's'}` : `Delete step ${index + 1}`}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" /></svg>
