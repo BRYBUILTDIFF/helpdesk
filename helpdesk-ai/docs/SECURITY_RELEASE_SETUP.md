@@ -103,8 +103,8 @@ Missing configuration and delivery failures fail closed. Codes are never returne
 ### Verify delivery after deployment
 
 1. Deploy the API on Render and rebuild the frontend on Vercel together.
-2. Sign in and select **Send email code**. Read the six-digit code in your administrator mailbox, then select **Verify and continue**.
-3. Codes expire after five minutes. **Resend code** replaces the old code after a one-minute cooldown. Five incorrect attempts require a new code.
+2. Sign in once with your password. The admin screen automatically sends an email code and asks only for that six-digit code. Enter it and select **Verify and continue**. Your password is not requested again.
+3. Codes expire after five minutes. **Resend code** shows a countdown and becomes available after a one-minute cooldown. Resending replaces the old code; reloading restores the server cooldown and reuses an active code. Five incorrect attempts require a new code.
 4. Reloading clears the in-memory proof. Proofs last at most one hour; mutations require verification within five minutes. Reverify and deliberately retry a challenged change.
 
 Existing administrators transition directly to email verification without authenticator enrollment or recovery codes. Backend admin endpoints enforce verification. Losing mailbox access requires private owner recovery; there is no public bypass.

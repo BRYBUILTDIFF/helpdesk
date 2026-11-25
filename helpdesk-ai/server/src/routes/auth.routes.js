@@ -8,9 +8,9 @@ const router = express.Router();
 const mfa = require('../controllers/adminMfaController');
 router.use('/admin-mfa', verifyToken, (req,res,next) => req.user.role === 'ADMIN' ? next() : res.status(403).json({message:'Forbidden'}), require('../middleware/requestLimits').requestLimit('admin-mfa', {max:10,windowMs:60000,key:req=>req.user.id}));
 router.get('/admin-mfa/status', mfa.status);
-router.post('/admin-mfa/send-code', [body('password').isString().isLength({min:1,max:72})], validateRequest, mfa.enroll);
-router.post('/admin-mfa/enroll', [body('password').isString().isLength({min:1,max:72})], validateRequest, mfa.enroll);
-router.post('/admin-mfa/verify', [body('password').isString().isLength({min:1,max:72}),body('code').isString().matches(/^\d{6}$/)], validateRequest, mfa.verify);
+router.post('/admin-mfa/send-code', mfa.enroll);
+router.post('/admin-mfa/enroll', mfa.enroll);
+router.post('/admin-mfa/verify', [body('code').isString().matches(/^\d{6}$/)], validateRequest, mfa.verify);
 
 const emailRule = body("email")
   .trim()

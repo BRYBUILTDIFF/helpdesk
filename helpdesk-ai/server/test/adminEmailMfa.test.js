@@ -17,12 +17,11 @@ const db={
  $transaction:async fn=>{const prior=record&&{...record};try{return await fn(db);}catch(e){record=prior;throw e;}}
 };
 require.cache[require.resolve('../src/prisma')]={exports:db};
-require.cache[require.resolve('../src/utils/password')]={exports:{comparePassword:async plain=>plain==='correct'}};
 require.cache[require.resolve('../src/services/adminEmail')]={exports:{sendCode:async(email,code)=>{if(failDelivery)throw new Error('delivery failed');delivered={email,code};}}};
 const controller=require('../src/controllers/adminMfaController');
 const mfa=require('../src/services/adminMfa');
-const req=(body={})=>({user,body:{password:'correct',...body},headers:{}});
-const res=()=>({statusCode:200,status(code){this.statusCode=code;return this;},json(body){this.body=body;return this;}});
+const req=(body={})=>({user,body,headers:{}});
+const res=()=>({statusCode:200,headers:{},set(key,value){this.headers[key]=value;return this;},status(code){this.statusCode=code;return this;},json(body){this.body=body;return this;}});
 const next=e=>{throw e;};
 beforeEach(()=>{record=null;delivered=null;failDelivery=false;});
 test('email code goes only to the stored admin address and is consumed once',async()=>{
@@ -40,7 +39,7 @@ test('expired codes and codes issued before a password change fail',async()=>{
 });
 test('five wrong attempts exhaust a challenge and immediate resend is limited',async()=>{
  await controller.enroll(req(),res(),next);
- const limited=res();await controller.enroll(req(),limited,next);assert.equal(limited.statusCode,429);
+ const limited=res();await controller.enroll(req(),limited,next);assert.equal(limited.statusCode,429);assert.ok(limited.body.resendAfter>0 && limited.body.resendAfter<=60);assert.equal(limited.headers['Retry-After'],String(limited.body.resendAfter));
  const wrong=delivered.code==='000000'?'111111':'000000';
  for(let i=0;i<5;i++){const result=res();await controller.verify(req({code:wrong}),result,next);assert.equal(result.statusCode,400);}
  const result=res();await controller.verify(req({code:delivered.code}),result,next);assert.equal(result.statusCode,400);
@@ -52,7 +51,22 @@ test('resending replaces the previous code and legacy authenticator state',async
  if(old!==delivered.code){const result=res();await controller.verify(req({code:old}),result,next);assert.equal(result.statusCode,400);}
  const result=res();await controller.verify(req({code:delivered.code}),result,next);assert.ok(record.secret.startsWith('email:'));assert.ok(result.body.verificationToken);
 });
-test('wrong password does not send email; delivery failure rolls back challenge',async()=>{
- await assert.rejects(()=>controller.enroll(req({password:'bad'}),res(),next));assert.equal(delivered,null);
+test('inactive or non-admin accounts cannot send; delivery failure rolls back challenge',async()=>{
+ user.isActive=false;try{await assert.rejects(()=>controller.enroll(req(),res(),next));}finally{user.isActive=true;}
+ user.role='USER';try{await assert.rejects(()=>controller.enroll(req(),res(),next));}finally{user.role='ADMIN';}
+ assert.equal(delivered,null);
  failDelivery=true;await assert.rejects(()=>controller.enroll(req(),res(),next));assert.equal(record,null);
+});
+
+test('status restores the resend countdown and pending challenge after reload',async()=>{
+ const sent=res();await controller.enroll(req(),sent,next);assert.equal(sent.body.resendAfter,60);
+ const status=res();await controller.status(req(),status,next);
+ assert.equal(status.body.challengeActive,true);assert.ok(status.body.resendAfter>0 && status.body.resendAfter<=60);
+ record.pendingExpiresAt=new Date(Date.now()+230000);
+ const ready=res();await controller.status(req(),ready,next);assert.equal(ready.body.resendAfter,0);assert.equal(ready.body.challengeActive,true);
+});
+test('anonymous and stale sessions cannot request or verify email codes',async()=>{
+ await assert.rejects(()=>controller.enroll({body:{},headers:{}},res(),next));
+ const stale={...req(),user:{...user,tokenVersion:0}};
+ await assert.rejects(()=>controller.enroll(stale,res(),next));await assert.rejects(()=>controller.verify(stale,res(),next));assert.equal(delivered,null);
 });
