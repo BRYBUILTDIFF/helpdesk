@@ -3,6 +3,7 @@ function classifierFailure(error) {
   const status = Number.isInteger(error?.status) && error.status >= 100 && error.status <= 599 ? error.status : undefined;
   let category = 'UNAVAILABLE';
   if (error?.code === 'CLASSIFIER_NOT_CONFIGURED') category = 'MISSING_API_KEY';
+  else if (error?.code === 'CLASSIFIER_TIMEOUT') category = 'TIMEOUT';
   else if (error?.code === 'CLASSIFIER_INVALID_RESPONSE') category = 'INVALID_RESPONSE';
   else if (status === 401 || status === 403) category = 'AUTHENTICATION_OR_PERMISSION';
   else if (status === 402) category = 'BILLING';

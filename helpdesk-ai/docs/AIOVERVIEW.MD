@@ -166,7 +166,7 @@ Threat/keyword patterns and moderation reduce risk but do not prove safety or fa
 
 ### 4.6 Scope classification and fallback
 
-The classifier receives its own system instructions, all configured scope reference phrases, up to eight recent history entries, and the latest message. History entries are limited to user/assistant roles and 4,000 characters each.
+The classifier receives its own system instructions, all configured scope reference phrases, up to eight recent history entries, and the latest message. History entries are limited to user/assistant roles and 4,000 characters each. They are encoded as quoted `conversation_history` data alongside `latest_message` inside one user message, rather than sent as live assistant turns. The classifier must classify the latest message instead of continuing a previous support answer.
 
 Its expected JSON is:
 
@@ -178,7 +178,7 @@ The parser can extract JSON from code fences or surrounding reasoning text. Unsu
 
 Local classification uses `POLICY_CLASSIFIER_URL` and `POLICY_CLASSIFIER_MODEL`, non-streaming, with an AbortController timeout defaulting to 8 seconds. Local confidence must be a finite JSON number in [0,1]. A local result below 0.75 is sent to the configured-provider fallback for verification.
 
-On local failure or uncertainty, the process skips local attempts for 30 seconds. The fallback uses the configured answer provider and model with temperature 0, `max_tokens: 250`, JSON response format, a default 15-second timeout, and SDK retries disabled for that call. If both paths fail, the request is unavailable rather than allowed automatically.
+On local failure or uncertainty, the process skips local attempts for 30 seconds. The fallback uses the configured answer provider and model with temperature 0, `max_tokens: 512`, JSON response format, a default 15-second deadline shared across attempts, and SDK retries disabled. A blank, malformed, truncated, or schema-invalid response gets one application retry with the same context and stricter format instructions. Confidence must be a finite JSON number between 0 and 1. Provider exceptions such as authentication, billing, rate limits, and network failures are not retried here. If both paths fail, the request is unavailable rather than allowed automatically.
 
 Scope keywords and intent phrases are classifier reference data. They do not independently allow a prompt or override safety. An accounting-software fault can be IT support despite an unsupported-topic keyword; an unrelated task mentioning a computer can still be redirected.
 
@@ -459,3 +459,6 @@ Deploy the updated backend and retry one normal IT question. The server logs fix
 | REQUEST_ABORTED | The user disconnected or the overall request deadline expired. |
 
 DeepSeek documents its [HTTP error codes](https://api-docs.deepseek.com/quick_start/error_codes/). The earlier generic `UNAVAILABLE` log was insufficient to distinguish these causes. Unit tests cover request construction and failure handling with provider stubs; they do not establish live credentials, billing, or model accuracy.
+
+
+Follow-up outage diagnosis: `[PolicyClassifier] Unavailable { category: "INVALID_RESPONSE" }` identifies invalid provider classification output. It does not establish whether the content was blank, malformed, or outside the classification schema. DeepSeek documents that JSON mode can return blank content ([JSON output guidance](https://api-docs.deepseek.com/guides/json_mode/)). The bounded retry and quoted history handling are covered by `classifierFollowup.test.js`; these use mocked provider responses, not live model accuracy tests. Backend logs include the sanitized history-message count, never the history text.
