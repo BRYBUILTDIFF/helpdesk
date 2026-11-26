@@ -83,7 +83,7 @@ If an older test run returns HTTP 500 while saving a module, regenerate Prisma w
 
 ## Batch source management
 
-Select documents individually or use **Select this page**. Selection carries across pages (up to 50 documents) and clears when changing the status filter or search. The default **Needs review** queue removes approved documents; use **Approved** to find them afterward.
+Use the status dropdown beside search to switch between **Needs review**, **Approved**, **Archived**, and **All sources**. Open the three-dot menu and choose **Select multiple sources** to reveal document checkboxes and batch actions. Select documents individually or use **Select this page**; **Done** exits selection mode and clears the selection. Selection carries across pages (up to 50 documents) and clears when changing the status filter or search. The default **Needs review** queue removes approved documents; use **Approved** to find them afterward.
 
 - **Approve selected** accepts draft versions only and requires confirmation that every selected document's extracted text was reviewed. Only one version of each source may be approved in the same batch. Older approved versions of those sources are archived.
 - **Archive selected** archives only the selected versions and removes them from future retrieval. Published source snapshots remain available.
