@@ -78,6 +78,8 @@ Deploy the reviewed API/frontend together. An old frontend does not handle the n
 
 Use the Resend HTTPS API for email delivery on the Render free instance. Google Cloud Console and Gmail OAuth credentials are not required. The administrator recipient remains `helpdesksimulations@gmail.com`; it comes from the authenticated account record.
 
+When moving to a new Resend account, replace `RESEND_API_KEY` on the **Render backend service**, not only in the local `.env` or Vercel project. Save and redeploy the backend. With the Resend testing sender, the new Resend account itself must permit the administrator recipient. Verification delivery failures now return safe `ADMIN_EMAIL_*` codes and log only the category/status; raw provider replies, keys, and codes are not logged. `ADMIN_EMAIL_RECIPIENT_RESTRICTED` means the testing recipient is not allowed, `ADMIN_EMAIL_KEY_INVALID` indicates a rejected key, and sender/domain errors identify invalid or unverified senders. These diagnostics require the updated backend to be deployed.
+
 Set these variables privately in **Render > your API service > Environment**:
 
 ```dotenv

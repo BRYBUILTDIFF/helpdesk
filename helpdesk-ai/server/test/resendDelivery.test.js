@@ -38,3 +38,19 @@ test('network failures and timeouts expose a sanitized error',async()=>{
  global.fetch=async()=>{throw new DOMException('deadline exceeded','TimeoutError');};
  await assert.rejects(()=>sendCode('admin@example.test','123456'),error=>error.status===503&&!error.message.includes('deadline'));
 });
+test('known provider errors expose safe actionable codes through the HTTP handler',async()=>{
+ const handler=require('../src/middleware/errorHandler');
+ for(const [status,message,code] of [
+  [403,'You can only send testing emails to your own email address (private@example.test).','ADMIN_EMAIL_RECIPIENT_RESTRICTED'],
+  [403,'The example.test domain is not verified.','ADMIN_EMAIL_SENDER_UNVERIFIED'],
+  [400,'Invalid from field. The email address needs a valid format.','ADMIN_EMAIL_SENDER_INVALID'],
+  [401,'API key is invalid: private-provider-value','ADMIN_EMAIL_KEY_INVALID'],
+  [429,'Daily quota exceeded','ADMIN_EMAIL_RATE_LIMITED']
+ ]){
+  global.fetch=async()=>({ok:false,status,json:async()=>({message})});
+  let error;try{await sendCode('admin@example.test','123456');}catch(e){error=e;}
+  assert.equal(error.code,code);let body,responseStatus;
+  handler(error,{}, {status(value){responseStatus=value;return this;},json(value){body=value;return this;}});
+  assert.equal(responseStatus,503);assert.equal(body.code,code);assert.ok(!body.message.includes('private@'));assert.ok(!body.message.includes('private-provider-value'));assert.ok(!JSON.stringify(body).includes('123456'));
+ }
+});

@@ -4,6 +4,8 @@ function errorHandler(err, _req, res, _next) {
   const candidate = Number(err.status || err.statusCode);
   const status = Number.isInteger(candidate) && candidate >= 400 && candidate < 600 ? candidate : 500;
   if (status < 500) return res.status(status).json({ message: err.type === "entity.too.large" ? "Request too large" : err.publicMessage || "Bad request" });
+  const emailMessages=require('../services/adminEmailErrors');
+  if(status===503&&Object.hasOwn(emailMessages,err.code))return res.status(503).json({message:emailMessages[err.code],code:err.code});
   // Never log parser bodies, provider headers, database URLs or request contents.
   const isDatabaseError = String(err.name || "").startsWith("PrismaClient");
   const detail = String(err.message || "");
