@@ -613,3 +613,5 @@
  .admin-ui .simulation-modules-page .sim-requests-workspace { max-height:520px; }
  .admin-ui .sim-requests-workspace .sim-prompt-toolbar { gap:10px; }
 }
+/* Let the request card fill the space left below the protected tabs. */
+.admin-ui .simulation-modules-page .sim-requests-workspace { flex:1 1 0; max-height:none; }

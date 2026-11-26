@@ -320,7 +320,7 @@ function PaginationControls({ page, pageCount, total, itemLabel, onPageChange })
       <span className="pagination-summary">Showing {total} {itemLabel} · Page {page} of {pageCount}</span>
       <div className="pagination-buttons" aria-label={`${itemLabel} pagination`}>
         <button type="button" className="pagination-btn" onClick={() => onPageChange(page - 1)} disabled={page === 1}>Previous</button>
-        {firstPage > 1 ? <><button type="button" className="pagination-btn" onClick={() => onPageChange(1)}>1</button><span className="pagination-ellipsis">â€¦</span></> : null}
+        {firstPage > 1 ? <><button type="button" className="pagination-btn" onClick={() => onPageChange(1)}>1</button><span className="pagination-ellipsis">…</span></> : null}
         {pages.map((pageNumber) => (
           <button
             key={pageNumber}
@@ -332,7 +332,7 @@ function PaginationControls({ page, pageCount, total, itemLabel, onPageChange })
             {pageNumber}
           </button>
         ))}
-        {lastPage < pageCount ? <><span className="pagination-ellipsis">â€¦</span><button type="button" className="pagination-btn" onClick={() => onPageChange(pageCount)}>{pageCount}</button></> : null}
+        {lastPage < pageCount ? <><span className="pagination-ellipsis">…</span><button type="button" className="pagination-btn" onClick={() => onPageChange(pageCount)}>{pageCount}</button></> : null}
         <button type="button" className="pagination-btn" onClick={() => onPageChange(page + 1)} disabled={page === pageCount}>Next</button>
       </div>
     </div>
@@ -690,7 +690,7 @@ function AdminPageContent() {
     weekEndDate.setDate(weekEndDate.getDate() + 6);
     const dateFormat = { month: "short", day: "numeric", year: "numeric" };
     return {
-      dateRange: `${weekStartDate.toLocaleDateString([], dateFormat)} â€“ ${weekEndDate.toLocaleDateString([], dateFormat)}`,
+      dateRange: `${weekStartDate.toLocaleDateString([], dateFormat)} – ${weekEndDate.toLocaleDateString([], dateFormat)}`,
       labels: points.map((point) => point.label),
       counts: points.map((point) => point.count)
     };
@@ -1370,7 +1370,7 @@ function AdminPageContent() {
   const previewRuntimeHint = stripHtml(previewCurrentStep.action || previewCurrentStep.desc || "");
   const previewFullName = [userForm.firstName.trim(), userForm.lastName.trim()].filter(Boolean).join(" ");
   const previewInitials =
-    `${userForm.firstName.trim().charAt(0)}${userForm.lastName.trim().charAt(0)}`.trim().toUpperCase() || "â€”";
+    `${userForm.firstName.trim().charAt(0)}${userForm.lastName.trim().charAt(0)}`.trim().toUpperCase() || "—";
   const showPasswordMatch =
     userModalMode === "create" && !useDefaultPassword && userForm.confirmPassword.trim().length > 0;
   const passwordMatch = userForm.password === userForm.confirmPassword;
@@ -1495,7 +1495,7 @@ function AdminPageContent() {
                   <div className="metric-card">
                     <div className="metric-label">Users</div>
                     <div className="metric-val">{userStats.total}</div>
-                    <div className="metric-sub">{userStats.active} active Ã‚· {userStats.admins} admin</div>
+                    <div className="metric-sub">{userStats.active} active · {userStats.admins} admin</div>
                     <div className="metric-delta delta-up">Active directory synced</div>
                   </div>
                   <div className="metric-card">

@@ -91,3 +91,34 @@
 .admin-ui .knowledge-delete-confirm { background:#ad3030; color:#fff; border-color:#ad3030; }
 .admin-ui .knowledge-delete-confirm:hover:not(:disabled) { background:#8e2525; }
 .admin-ui .knowledge-library-column .knowledge-document-actions { flex-wrap:wrap; }
+
+/* A bounded page of compact document rows keeps large libraries manageable. */
+.admin-ui .knowledge-list-options { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:12px 0; font-size:12px; color:var(--color-text-secondary); }
+.admin-ui .knowledge-list-options label, .admin-ui .knowledge-pagination label { display:flex; align-items:center; gap:8px; margin:0; font-size:12px; }
+.admin-ui .knowledge-list-options select, .admin-ui .knowledge-pagination select, .admin-ui .knowledge-row-menu { width:auto; padding:8px; background:var(--color-background-secondary); color:var(--color-text-primary); border:1px solid var(--color-border-tertiary); border-radius:6px; font:inherit; font-size:12px; }
+.admin-ui .knowledge-library-column .knowledge-document-row { grid-template-columns:minmax(0,1fr) 115px auto; align-items:center; padding:14px 16px; gap:12px; }
+.admin-ui .knowledge-library-column .knowledge-document-name { grid-column:1; grid-row:1; }
+.admin-ui .knowledge-library-column .knowledge-document-size { display:none; }
+.admin-ui .knowledge-library-column .knowledge-document-row > div:nth-child(3) { grid-column:2; grid-row:1; padding:0; }
+.admin-ui .knowledge-library-column .knowledge-document-actions { grid-column:3; grid-row:1; padding:0; gap:8px; flex-wrap:nowrap; }
+.admin-ui .knowledge-library-column .knowledge-document-name small { margin-top:4px; white-space:normal; }
+.admin-ui .knowledge-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:16px 0 0; color:var(--color-text-secondary); font-size:12px; }
+.admin-ui .knowledge-pagination > div { display:flex; gap:12px; align-items:center; }
+@media(min-width:801px) { .admin-ui .knowledge-upload-column { position:sticky; top:20px; } }
+@media(max-width:1150px) { .admin-ui .knowledge-library-column .knowledge-document-row { grid-template-columns:minmax(0,1fr) auto; } .admin-ui .knowledge-library-column .knowledge-document-actions { grid-column:1/-1; grid-row:2; padding-left:53px; justify-content:flex-start; } }
+@media(max-width:600px) { .admin-ui .knowledge-pagination > div { width:100%; justify-content:space-between; gap:8px; } .admin-ui .knowledge-library-column .knowledge-document-actions { padding-left:0; } .admin-ui .knowledge-library-column .knowledge-document-row > div:nth-child(3) { grid-row:1; grid-column:2; } .admin-ui .knowledge-library-column .knowledge-file-type { display:none; } }
+.admin-ui .knowledge-library-column .knowledge-document-row { min-height:0; box-sizing:border-box; }
+.admin-ui .knowledge-library-column .knowledge-document-actions .knowledge-row-menu { width:78px; min-width:78px; max-width:78px; flex:none; }
+.admin-ui .knowledge-document-list .knowledge-status-group { padding:12px 16px; background:var(--color-background-tertiary); border-bottom:1px solid var(--color-border-tertiary); }
+.admin-ui .knowledge-status-group h3 { margin:0; display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; }
+.admin-ui .knowledge-status-group span { font-weight:400; color:var(--color-text-secondary); }
+.admin-ui .knowledge-batch-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:16px 0 8px; padding:12px; border:1px solid var(--color-border-tertiary); border-radius:8px; font-size:12px; }
+.admin-ui .knowledge-batch-toolbar .knowledge-checkbox { margin:0; display:flex; align-items:center; gap:8px; }
+.admin-ui .knowledge-batch-toolbar > div { display:flex; gap:12px; margin-left:auto; flex-wrap:wrap; align-items:center; }
+.admin-ui .knowledge-row-selection { width:16px; height:16px; margin:0; flex:none; accent-color:#286044; }
+.admin-ui .knowledge-batch-dialog { max-width:720px; }
+.admin-ui .knowledge-batch-document-list { max-height:220px; overflow:auto; margin-bottom:18px !important; }
+.admin-ui .knowledge-batch-dialog .knowledge-checkbox { display:flex; align-items:flex-start; gap:10px; }
+.admin-ui .knowledge-batch-dialog .knowledge-checkbox input { flex:none; width:16px; height:16px; margin:4px 0; }
+.admin-ui #knowledge-batch-delete-confirm { width:100%; box-sizing:border-box; padding:10px; font:inherit; color:var(--color-text-primary); background:var(--color-background-primary); border:1px solid var(--color-border-tertiary); border-radius:6px; }
+@media(max-width:600px) { .admin-ui .knowledge-batch-toolbar > div { width:100%; margin-left:0; } }

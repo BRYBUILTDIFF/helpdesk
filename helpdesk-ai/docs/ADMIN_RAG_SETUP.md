@@ -71,7 +71,7 @@ For local development, run migrations against an explicitly selected local owner
 ```powershell
 npm.cmd test
 npm.cmd run lint
-npm.cmd ru
+npm.cmd run test:knowledge-rag
 
 ```
 
@@ -80,3 +80,13 @@ The integration runner regenerates Prisma before loading the client, then reads 
 Evaluate the actual deployed corpus with a held-out set of requests, expected supporting sections, incorrect/missing-source cases, citation-support ratings, and generation latency before reporting research results.
 
 If an older test run returns HTTP 500 while saving a module, regenerate Prisma with `npm.cmd run generate` and restart any running backend process. A stale client does not recognize the new `SimulationModule.provenance` column, even if the migration succeeded. The updated integration runner performs generation automatically.
+
+## Batch source management
+
+Select documents individually or use **Select this page**. Selection carries across pages (up to 50 documents) and clears when changing the status filter or search. The default **Needs review** queue removes approved documents; use **Approved** to find them afterward.
+
+- **Approve selected** accepts draft versions only and requires confirmation that every selected document's extracted text was reviewed. Only one version of each source may be approved in the same batch. Older approved versions of those sources are archived.
+- **Archive selected** archives only the selected versions and removes them from future retrieval. Published source snapshots remain available.
+- **Delete selected** requires typing `DELETE`. It deletes all versions and extracted passages belonging to the selected sources, including versions not explicitly selected. The confirmation shows the affected version and passage counts. Saved simulation and draft snapshots remain separate copies.
+
+The backend signs a ten-minute preview bound to the administrator, selection, action, and current source state. Each batch runs in one database transaction; missing or changed sources invalidate the entire batch without partial updates. These endpoints use the existing administrator authentication, request limits, and audit middleware. This feature needs frontend and backend deployment; it introduces no database migration.

@@ -39,6 +39,8 @@ const { requestLimit } = require("../middleware/requestLimits");
 router.use((req, res, next) => ["POST", "PATCH", "PUT", "DELETE"].includes(req.method)
   ? requestLimit("admin-writes", { max: 60, windowMs: 60000, key: req => req.user.id })(req, res, next) : next());
 const knowledge = require('../controllers/knowledgeController');
+router.post('/knowledge/batch/preview',[body('action').isIn(['approve','archive','delete']),body('ids').isArray({min:1,max:50}),body('ids.*').isUUID()],validateRequest,async(req,res,next)=>{try{res.json(await require('../services/knowledgeBatch').preview(req.body.action,req.body.ids,req.user.id));}catch(error){next(error);}});
+router.post('/knowledge/batch',[body('token').isString().isLength({min:1,max:30000}),body('reviewConfirmed').optional().isBoolean({strict:true}),body('confirmation').optional().isString().isLength({max:10})],validateRequest,async(req,res,next)=>{try{res.json(await require('../services/knowledgeBatch').apply(req.body,req.user.id));}catch(error){next(error);}});
 router.get('/knowledge', knowledge.list);
 router.get('/knowledge/:id', [param('id').isUUID()], validateRequest, knowledge.detail);
 router.get('/knowledge/:id/deletion-preview',[param('id').isUUID()],validateRequest,knowledge.deletionPreview);
