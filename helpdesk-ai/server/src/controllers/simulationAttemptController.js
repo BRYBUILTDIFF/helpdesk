@@ -19,9 +19,9 @@ async function submitCommand(req,res,next){try{
  const result=await prisma.$transaction(async tx=>{
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.params.attemptId}))`;
   const attempt=await tx.simulationAttempt.findFirst({where:{id:req.params.attemptId,userId:req.user.id,moduleId:req.params.id}});
-  if(attempt&&!require('../utils/simulationSurfaces').supportsWindowsSimulation(attempt.expected?.definition))return {status:410,message:'This historical platform is no longer supported. Choose a Windows simulation.'};
+  if(attempt&&!require('../utils/simulationSurfaces').supportsWindowsSimulation(attempt.expected?.definition))return {httpStatus:410,message:'This historical platform is no longer supported. Choose a Windows simulation.'};
   if(!attempt||attempt.expiresAt<=new Date()||attempt.expected?.version!==2)return null;
-  if(attempt.expected.status!=='ACTIVE')return {status:409,message:'This attempt has ended. Restart to practice again.'};
+  if(attempt.expected.status!=='ACTIVE')return {httpStatus:409,message:'This attempt has ended. Restart to practice again.'};
   const input={step:req.body.step,kind:req.body.kind||'command',command:req.body.command};
   // A repeated successful action is idempotent only when its kind and command agree.
   const previous=attempt.expected.events.find(e=>e.step===input.step&&e.accepted&&e.kind===input.kind&&(input.kind==='checkpoint'||runtime.canonicalCommand(e.command)===runtime.canonicalCommand(input.command)));
@@ -31,7 +31,7 @@ async function submitCommand(req,res,next){try{
   return {...runtime.snapshot(updated),accepted:changed.accepted,output:changed.output,clear:changed.clear||false};
  });
  if(!result)return res.status(410).json({message:'Attempt not found, expired, or outdated. Restart the simulation.',code:'ATTEMPT_EXPIRED'});
- if(result.status)return res.status(result.status).json(result);
+ if(result.httpStatus)return res.status(result.httpStatus).json({message:result.message});
  return res.json(result);
 }catch(e){next(e);}}
 async function endAttempt(req,res,next){try{

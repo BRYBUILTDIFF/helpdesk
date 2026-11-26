@@ -15,7 +15,7 @@ async function recordPolicyEvent(event) {
     sessionId: event.sessionId || null, requestId: event.requestId || null,
     outcome: policyOutcome(event), stage: event.stage || "input",
     ...(event.metadata ? { metadata: event.metadata } : {}) };
-  if (event.sessionId && safetyViolation(event)) {
+  if (event.userId && safetyViolation(event)) {
     return prisma.$transaction(async tx => {
       const restriction = await recordViolation(tx, event);
       return { ...await tx.policyEvent.create({ data }), restriction };

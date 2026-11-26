@@ -2298,15 +2298,15 @@ function AdminPageContent() {
             </div>
             {selectedPolicyEvent.hasHistory ? <div className="policy-event-history-note">This decision was evaluated with relevant conversation history.</div> : null}
             {selectedPolicyEvent.sessionId ? <div className="policy-event-modal-section"><span>Conversation</span><p>{selectedPolicyEvent.sessionId}</p><span>Request</span><p>{selectedPolicyEvent.requestId || "Historical event"}</p></div> : null}
-            {selectedPolicyEvent.userId && selectedPolicyEvent.sessionId ? <div className="policy-event-modal-section">
+            {selectedPolicyEvent.userId ? <div className="policy-event-modal-section">
               <button type="button" className="btn-sm" disabled={pendingKey === "reset-session-cooldown" || selectedPolicyEvent.cooldownReset} onClick={async () => {
                 setPendingKey("reset-session-cooldown");
                 try {
-                  await api.post(`/api/admin/session-restrictions/${selectedPolicyEvent.userId}/reset`, { sessionId: selectedPolicyEvent.sessionId });
+                  await api.post(`/api/admin/session-restrictions/${selectedPolicyEvent.userId}/reset`, {});
                   setSelectedPolicyEvent(previous => previous ? { ...previous, cooldownReset: true } : previous);
                 } catch (error) { setError(safeError(error)); }
                 finally { setPendingKey(""); }
-              }}>{selectedPolicyEvent.cooldownReset ? "Cooldown reset" : pendingKey === "reset-session-cooldown" ? "Resetting..." : "Reset session cooldown"}</button>
+              }}>{selectedPolicyEvent.cooldownReset ? "Cooldown reset" : pendingKey === "reset-session-cooldown" ? "Resetting..." : "Reset account cooldown"}</button>
             </div> : null}
           </section>
         </div>

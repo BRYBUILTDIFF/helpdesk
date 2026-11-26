@@ -60,9 +60,9 @@ router.post('/simulation-modules', (req, res, next) => {
 });
 router.post("/simulation-modules", (req, res, next) => req.body?.mode === "from_prompt"
   ? requestLimit("admin-generation", { max: 10, windowMs: 3600000, key: req => req.user.id })(req, res, next) : next());
-router.post("/session-restrictions/:userId/reset", [param("userId").isInt({ min: 1 }).toInt(), body("sessionId").isString().isLength({ min: 1, max: 120 })], validateRequest, async (req, res, next) => {
+router.post("/session-restrictions/:userId/reset", [param("userId").isInt({ min: 1 }).toInt(), body("sessionId").optional().isString().isLength({ min: 1, max: 120 })], validateRequest, async (req, res, next) => {
   try {
-    await require("../prisma").sessionRestriction.deleteMany({ where: { userId: req.params.userId, sessionId: req.body.sessionId } });
+    await require("../prisma").sessionRestriction.deleteMany({ where: { userId: req.params.userId } });
     return res.json({ reset: true });
   } catch (error) { next(error); }
 });

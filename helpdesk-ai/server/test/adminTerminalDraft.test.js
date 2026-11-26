@@ -28,6 +28,13 @@ test('file-management prompts reach source-backed generation instead of the old 
   assert.equal(JSON.parse(captured.messages[1].content).request,prompt);
  }
 });
+
+test('Wi-Fi troubleshooting variants pass alignment and still require approved evidence',async()=>{
+ noSources=true;
+ try{for(const prompt of ['HOW CAN I FIX WIFI ON MY COMPUTER?','How can I fix Wi-Fi on Windows 11?','Fix wi fi on my computer','Fix wireless on my computer','Troubleshoot wifi using PowerShell']){
+  await assert.rejects(invoke(prompt),error=>error.status===422,'Wi-Fi prompts must reach retrieval instead of domain rejection');
+ }}finally{noSources=false;}
+});
 test('unsupported platforms, physical repairs, unrelated tasks and short requests retain clear rejection reasons',async()=>{
  for(const [prompt,reason] of [['Create a folder on Ubuntu','unsupported platform'],['Replace a broken laptop screen','physical hardware repair'],['Write a poem about summer','supported IT troubleshooting domain'],['folder','too short']]){
   const result=await invoke(prompt);

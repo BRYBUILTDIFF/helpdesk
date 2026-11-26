@@ -32,7 +32,7 @@ const PHYSICAL_DEVICE_PATTERN = /\b(monitor|screen|display|hinge|lcd|panel|keybo
 const SIMULATION_INTENT_PATTERN =
   /\b(reset|unlock|troubleshoot|diagnose|fix|resolve|recover|restore|configure|setup|install|update|investigate|check|verify|repair|guide|step by step|walk me through|how to)\b/;
 const SIMULATION_DOMAIN_PATTERN =
-  /\b(password|account|admin|login|signin|sign in|active directory|ad user|dns|vpn|network|internet|ip|gateway|service|process|event log|error|not working|failed|cannot|outlook|email|mailbox|printer|spooler|cpu|memory|disk|storage|malware|virus|permissions?)\b/;
+  /\b(password|account|admin|login|signin|sign in|active directory|ad user|dns|vpn|wi[ -]?fi|wireless|network|internet|ip|gateway|service|process|event log|error|not working|failed|cannot|outlook|email|mailbox|printer|spooler|cpu|memory|disk|storage|malware|virus|permissions?)\b/;
 const SIMULATION_ELIGIBLE_POLICY_CODES = new Set(["ALLOWED", "ALLOWED_RULE_MATCH"]);
 const PROMPT_SIGNATURE_STOP_WORDS = new Set([
   "a", "an", "and", "are", "can", "could", "do", "for", "help", "how", "i", "im", "is", "it", "me", "my", "of", "on", "please", "the", "to", "what", "when", "with", "you", "your"
@@ -136,7 +136,7 @@ function toSimulationSurfaceLabel(surface = "") {
 function inferPromptSimulationSurface(prompt = "") {
  const source=String(prompt).toLowerCase();
  const terminal=/\bterminal\b|powershell|command prompt|\bcmd\b/.test(source);
- const gui=/\bsettings\b|control panel|device manager|\bclick\b|file explorer/.test(source);
+ const gui=/\bsettings\b|control panel|device manager|\bclick\b|file explorer|\bwi[ -]?fi\b|\bwireless\b/.test(source);
  return !terminal&&gui?'windows-os':'windows-terminal';
 }
 

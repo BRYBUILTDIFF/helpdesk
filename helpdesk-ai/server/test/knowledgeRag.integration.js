@@ -23,7 +23,10 @@ test('real PostgreSQL ingestion, full-text retrieval, auth, generation and sourc
  const tokens={admin:generateAccessToken({id:admin.id,tokenVersion:0}),user:generateAccessToken({id:user.id,tokenVersion:0})};
  async function api(path,method='GET',body,actor='admin'){
    const headers={};if(actor)headers.Authorization='Bearer '+tokens[actor];if(body&&!(body instanceof FormData))headers['Content-Type']='application/json';
-   const result=await fetch(origin+path,{method,headers,body:body instanceof FormData?body:body?JSON.stringify(body):undefined});return {status:result.status,body:await result.json()};
+   const result=await fetch(origin+path,{method,headers,body:body instanceof FormData?body:body?JSON.stringify(body):undefined});const response={status:result.status,body:await result.json()};
+   // HTTP finish releases AI leases asynchronously; do not race the next test request against cleanup.
+   if(path===base+'/simulation-modules/draft')for(let i=0;i<100&&await prisma.securityLease.count();i++)await new Promise(resolve=>setTimeout(resolve,10));
+   return response;
  }
  const base='/api/admin';
  try{
@@ -55,6 +58,30 @@ test('real PostgreSQL ingestion, full-text retrieval, auth, generation and sourc
   await api(base+'/knowledge/'+source.id,'PATCH',{status:'APPROVED'});
   assert.equal((await api(base+'/simulation-modules/'+moduleId,'PATCH',{enabled:true,testToken:tested.body.testToken,baseRevision:1})).status,200);
   const student=await api('/api/simulations/modules','GET',null,'user');assert.equal(student.status,200);assert.ok(!JSON.stringify(student.body).includes(text),'Admin source snapshots must not leak in student module listings');
+  const started=await api('/api/simulations/modules/'+moduleId+'/attempts','POST',{},'user');assert.equal(started.status,201);
+  const attemptPath='/api/simulations/modules/'+moduleId+'/attempts/'+started.body.attemptKey;
+  const command=body=>api(attemptPath+'/commands','POST',body,'user');
+  const help=await command({step:0,kind:'command',command:'help'});assert.equal(help.status,200);assert.equal(help.body.status,'ACTIVE');assert.equal(help.body.nextStep,0);
+  const wrong=await command({step:0,kind:'command',command:'whoami'});assert.equal(wrong.status,200);assert.equal(wrong.body.accepted,false);assert.equal(wrong.body.mistakes,1);
+  for(const [step,action] of started.body.definition.steps.entries()){
+   const body={step,kind:action.type,command:action.expectedCommands[0]||''};
+   const performed=await command(body);assert.equal(performed.status,200);assert.equal(performed.body.accepted,true);assert.equal(performed.body.nextStep,step+1);assert.equal(performed.body.status,'ACTIVE');
+   if(step===0){const replay=await command(body);assert.equal(replay.status,200);assert.equal(replay.body.replayed,true);}
+  }
+  assert.equal((await api(attemptPath+'/end','POST',{},'user')).status,200);
+  assert.equal((await command({step:0,kind:'checkpoint'})).status,409,'Ended attempts must return an HTTP conflict, not a server failure');
+  assert.equal((await api(attemptPath+'/commands','POST',{step:0,kind:'checkpoint'},'admin')).status,410,'Attempts remain private to their owner');
+  const restrictions=require('../src/services/sessionRestrictionService'),events=require('../src/store/policyEventStore');
+  await Promise.all(['one','two','three'].map(sessionId=>events.recordPolicyEvent({userId:user.id,userEmail:user.email,sessionId,blocked:true,code:'SAFETY_THREAT',message:'test safety event'})));
+  const paused=await restrictions.getRestriction(user.id,'unrelated-new-chat');assert.ok(paused.expiresAt>new Date());assert.equal(paused.violations,3);
+  assert.equal(await restrictions.getRestriction(admin.id,'same-browser'),null,'Another account is not paused');
+  await prisma.sessionRestriction.updateMany({where:{userId:user.id},data:{expiresAt:new Date(Date.now()-1000)}});
+  assert.equal(await restrictions.getRestriction(user.id),null,'Expired cooldown allows requests again');
+  await prisma.sessionRestriction.create({data:{userId:admin.id,sessionId:'legacy-conversation',violations:3,expiresAt:new Date(Date.now()+600000)}});
+  assert.ok(await restrictions.getRestriction(admin.id,'different-browser'),'Existing conversation cooldowns remain effective across the account');
+  assert.equal((await api(base+'/session-restrictions/'+admin.id+'/reset','POST',{} ,'user')).status,403);
+  assert.equal((await api(base+'/session-restrictions/'+admin.id+'/reset','POST',{sessionId:'another-conversation'})).status,200);
+  assert.equal(await restrictions.getRestriction(admin.id),null,'An administrator reset clears both legacy and account cooldowns');
   const reopened=await api(base+'/simulation-drafts','POST',{moduleId});assert.equal(reopened.status,201);assert.equal(reopened.body.draft.generation.rag.sources[0].text,text);
   const editedSimulation=structuredClone(reopened.body.draft.simulation);editedSimulation.steps[0].instruction='Review the approved procedure, then open the training administrator session.';
   const edited=await api(base+'/simulation-drafts/'+reopened.body.draft.id,'PATCH',{version:reopened.body.draft.version,simulation:editedSimulation});assert.equal(edited.status,200);assert.deepEqual(edited.body.draft.simulation.steps[0].sourceIds,['S1']);

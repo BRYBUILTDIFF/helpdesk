@@ -226,11 +226,11 @@ async function chat(req, res, next) {
 
     const sessionId = String(req.body.sessionId || "").trim();
     const requestId = randomUUID();
-    const restriction = await getRestriction(req.user.id, sessionId);
+    const restriction = await getRestriction(req.user.id);
     if (restriction) {
       res.set("Retry-After", String(Math.ceil((restriction.expiresAt - Date.now()) / 1000)));
       return res.status(429).json({ code: "SESSION_COOLDOWN", expiresAt: restriction.expiresAt,
-        message: "This conversation is paused for 10 minutes after repeated safety-blocked requests. Please try again after the cooldown." });
+        message: "AI requests on your account are paused for 10 minutes after repeated safety-blocked requests. This applies to all conversations and signed-in sessions. Please try again after the cooldown." });
     }
     if (req.body.resetHistory && sessionId) {
       await prisma.$transaction([
@@ -283,7 +283,7 @@ async function chat(req, res, next) {
       return res.status(policyResult.httpStatus || 200).json({
         ...(policyResult.httpStatus ? { message: policyResult.userMessage } : {}),
         reply: recorded?.restriction?.expiresAt
-          ? `${policyResult.userMessage} This conversation is now paused for 10 minutes after three safety-blocked requests.`
+          ? `${policyResult.userMessage} AI requests on your account are now paused for 10 minutes after three safety-blocked requests. This applies to all conversations and signed-in sessions.`
           : policyResult.userMessage,
         policy: {
           blocked: true,

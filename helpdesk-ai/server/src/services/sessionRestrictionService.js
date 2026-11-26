@@ -1,18 +1,22 @@
 const prisma = require("../prisma");
 const WINDOW_MS = 15 * 60000;
 const COOLDOWN_MS = 10 * 60000;
+// Store the account counter in the existing table, independently of chat IDs.
+const ACCOUNT_SCOPE = '__account_safety__';
 function safetyViolation(event) {
   return event.blocked && /^SAFETY_/.test(event.code || "") && !/UNAVAILABLE/.test(event.code);
 }
-async function getRestriction(userId, sessionId) {
-  if (!sessionId) return null;
-  const row = await prisma.sessionRestriction.findUnique({ where: { userId_sessionId: { userId, sessionId } } });
-  return row?.expiresAt > new Date() ? row : null;
+async function getRestriction(userId) {
+  if (!userId) return null;
+  // Honor pre-existing conversation cooldowns across the account until they expire.
+  return prisma.sessionRestriction.findFirst({where:{userId,expiresAt:{gt:new Date()}},orderBy:{expiresAt:'desc'}});
 }
 async function recordViolation(tx, event, now = new Date()) {
-  if (!event.userId || !event.sessionId || !safetyViolation(event)) return null;
-  const key = { userId: event.userId, sessionId: event.sessionId };
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`restriction:${event.userId}:${event.sessionId}`}))`;
+  if (!event.userId || !safetyViolation(event)) return null;
+  const key = { userId: event.userId, sessionId: ACCOUNT_SCOPE };
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`restriction:${event.userId}`}))`;
+  const active=await tx.sessionRestriction.findFirst({where:{userId:event.userId,expiresAt:{gt:now}},orderBy:{expiresAt:'desc'}});
+  if(active)return active;
   const previous = await tx.sessionRestriction.findUnique({ where: { userId_sessionId: key } });
   if (previous?.expiresAt > now) return previous;
   const inWindow = previous && !previous.expiresAt && now - previous.windowStart < WINDOW_MS;
@@ -22,4 +26,4 @@ async function recordViolation(tx, event, now = new Date()) {
     reason: violations >= 3 ? "Repeated safety-blocked requests" : null };
   return tx.sessionRestriction.upsert({ where: { userId_sessionId: key }, create: { ...key, ...data }, update: data });
 }
-module.exports = { getRestriction, recordViolation, safetyViolation, WINDOW_MS, COOLDOWN_MS };
+module.exports = { getRestriction, recordViolation, safetyViolation, WINDOW_MS, COOLDOWN_MS, ACCOUNT_SCOPE };

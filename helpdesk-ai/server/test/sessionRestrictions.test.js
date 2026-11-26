@@ -2,10 +2,12 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { recordViolation, safetyViolation } = require("../src/services/sessionRestrictionService");
 function database() {
-  let row = null;
+  const rows = new Map();
+  const key=value=>value.userId+':'+value.sessionId;
   return { $executeRaw: async () => {}, sessionRestriction: {
-    findUnique: async () => row,
-    upsert: async ({create, update}) => (row = row ? {...row, ...update} : create)
+    findUnique: async ({where}) => rows.get(key(where.userId_sessionId))||null,
+    findFirst: async ({where})=>[...rows.values()].filter(row=>row.userId===where.userId&&row.expiresAt>where.expiresAt.gt).sort((a,b)=>b.expiresAt-a.expiresAt)[0]||null,
+    upsert: async ({create, update}) => {const id=key(create),row=rows.get(id);const next=row?{...row,...update}:create;rows.set(id,next);return next;}
   } };
 }
 const event = {userId: 1, sessionId: "conversation", blocked: true, code: "SAFETY_THREAT"};
@@ -27,4 +29,15 @@ test("non-violations never contribute; windows expire after fifteen minutes", as
   const tx = database(), now = new Date();
   await recordViolation(tx, event, now);
   assert.equal((await recordViolation(tx, event, new Date(+now + 900001))).violations, 1);
+});
+
+test('violations accumulate across conversations and missing chat IDs, independently per user',async()=>{
+ const tx=database(),now=new Date();
+ await recordViolation(tx,{...event,sessionId:'chat-a'},now);
+ await recordViolation(tx,{...event,sessionId:'chat-b'},now);
+ const third=await recordViolation(tx,{...event,sessionId:''},now);
+ assert.equal(third.violations,3);assert.equal(third.expiresAt-now,600000);
+ assert.equal((await recordViolation(tx,{...event,sessionId:'new-device'},new Date(+now+1000))).expiresAt,third.expiresAt);
+ const other=await recordViolation(tx,{...event,userId:2},now);
+ assert.equal(other.violations,1);assert.equal(other.expiresAt,null);
 });

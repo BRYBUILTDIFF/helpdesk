@@ -122,7 +122,7 @@ This heuristic inspects the current message rather than the entire trusted serve
 
 1. Applies `redactSecrets()` to the message and trims it.
 2. Creates a server-generated UUID `requestId` for policy-event tracing.
-3. Checks `SessionRestriction` for `(authenticated userId, sessionId)`. An active restriction returns HTTP 429, `SESSION_COOLDOWN`, expiration, and `Retry-After` before history reset or model calls.
+3. Checks `SessionRestriction` for the authenticated user across all conversations. An active restriction returns HTTP 429, `SESSION_COOLDOWN` (retained for API compatibility), expiration, and `Retry-After` before history reset or model calls.
 4. If `resetHistory` is true, deletes that user's `PolicyConversation` row for this session.
 5. Loads trusted server history and the stored conversation scope.
 6. Calls `evaluatePromptPolicy(message, history, { conversationScope })`.
@@ -240,7 +240,7 @@ The controller records an event, appends the user message and released answer/re
 | `PolicyConversation` | Trusted model history and scope | Unique per user/session; last 10 messages, about five full turns; rolling 24-hour expiry |
 | `ChatSession` | User-visible transcript and simulation workspace JSON | Composite user/session key; client-editable display state; not model authority |
 | `PolicyEvent` | Governance and troubleshooting evidence | Redacted prompt excerpt, code/reason/outcome, user/session/request association, metadata |
-| `SessionRestriction` | Safety violation window and cooldown | User/session scoped; independent of transcript deletion |
+| `SessionRestriction` | Safety violation window and cooldown | Account scoped using a reserved session key; independent of transcript deletion |
 | `PolicyConfig` / `PolicyRule` | Versioned policy templates and phrase lists | PostgreSQL-backed with runtime caching/version checks |
 | `RequestLimit` | Shared request counters | Atomic database counters across API processes |
 
@@ -264,15 +264,15 @@ Retention cleanup runs at server startup and hourly. Defaults are 90 days for po
 
 Only blocked input events whose code starts with `SAFETY_` and does not contain `UNAVAILABLE` count as violations.
 
-- First and second eligible violations increment the conversation's counter.
+- First and second eligible violations increment the account's counter, even across different conversations or devices.
 - A third within a 15-minute window starts a 10-minute cooldown.
 - The third rejection includes cooldown expiration and violation details in `policy` metadata.
-- Subsequent requests in that conversation return HTTP 429 before policy/generation.
+- Subsequent AI chat requests for that account return HTTP 429 before policy/generation, including new conversations and signed-in sessions.
 - A violation after window/cooldown expiry starts a fresh count as defined by the restriction service.
 
-Violation updates and their events are recorded in one transaction with an advisory lock. Requests already in progress are not cancelled retroactively. A different session ID is a different conversation; this is not an account-wide ban. Request UUIDs are trace identifiers, not retry deduplication keys.
+Violation updates and their events are recorded in one transaction with an account-level advisory lock. Requests already in progress are not cancelled retroactively. The existing table stores the shared counter under the reserved `__account_safety__` session key; no schema migration is needed. Active legacy conversation cooldowns also apply across the account until they expire. Request UUIDs are trace identifiers, not retry deduplication keys.
 
-Admins can inspect `/api/admin/session-restrictions` and reset a user's specified conversation through `POST /api/admin/session-restrictions/:userId/reset`. Admin access and mutation auditing apply.
+Admins can inspect `/api/admin/session-restrictions` and reset all restrictions for a user through `POST /api/admin/session-restrictions/:userId/reset`. Admin access and mutation auditing apply. The reset covers both account and legacy conversation rows.
 
 ## 7. Response display and errors
 
