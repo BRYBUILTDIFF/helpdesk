@@ -4,7 +4,7 @@ const { windowsSimulationsEnabled } = require("../utils/simulationAvailability")
 async function getSimulationSources(req,res,next) {
   try {
     const module=await require('../prisma').simulationModule.findUnique({where:{id:req.params.id},select:{enabled:true,simulation:true,provenance:true}});
-    if(!module?.enabled || (!windowsSimulationsEnabled() && module.simulation?.surface==='windows-os'))return res.status(404).json({message:'Simulation module not found.'});
+    if(!module?.enabled || !require('../utils/simulationSurfaces').supportsWindowsSimulation(module.simulation) || (!windowsSimulationsEnabled() && module.simulation?.surface==='windows-os'))return res.status(404).json({message:'Simulation module not found.'});
     const rag=module.provenance?.rag;
     if(!rag)return res.json({sources:[],steps:[]});
     // Only published snapshots and student-facing citation fields. Never return

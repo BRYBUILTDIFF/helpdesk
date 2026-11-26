@@ -318,6 +318,10 @@ async function evaluatePromptDecision(message, history, context, policy) {
     return { allowed: false, code: safetyBlock.code, ...(safetyBlock.code === "SAFETY_UNAVAILABLE" ? { httpStatus: 503 } : {}), reason: "Prompt failed the content-safety check.", userMessage: safetyBlock.message };
   }
 
+  if(require('../utils/simulationSurfaces').UNSUPPORTED_OS_PATTERN.test(input))return {
+    allowed:false,code:'UNSUPPORTED_PLATFORM',reason:'The system currently supports Windows 11 and Windows Terminal only.',
+    directReply:'This system currently focuses on Windows 11 and Windows Terminal. Tell me the Windows task you want help with.'
+  };
   const normalizeGreeting = value => String(value || "").trim().toLowerCase().replace(/^[!.?\s]+|[!.?\s]+$/g, "").replace(/\s+/g, " ");
   const greetingOnly = configuredTerms(policy.greetingPatterns).some(phrase => normalizeGreeting(phrase) === normalizeGreeting(input));
   if (greetingOnly) {

@@ -24,7 +24,7 @@ router.post(
   [
     param("id").isString().trim().isLength({ min: 1, max: 80 }),
     body("attemptKey").isString().trim().isLength({ min: 8, max: 180 }),
-    body("surface").isString().trim().isIn(["windows-os", "windows-terminal", "mac-terminal", "mac-os"]),
+    body("surface").isString().trim().isIn(["windows-os", "windows-terminal"]),
     body("stepsCompleted").isInt({ min: 0, max: 100 })
   ],
   validateRequest,

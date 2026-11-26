@@ -26,7 +26,6 @@ import TerminalModuleTester from "./TerminalModuleTester";
 import DesktopModuleEditor from "./DesktopModuleEditor";
 import TerminalEmulator from "../users/Modules/TerminalEmulator";
 import WindowsOsSimulation from "../users/Modules/WindowsOsSimulation";
-import macOsPreviewImg from "../../IMG/MAC.jpg";
 import windowsOsPreviewImg from "../../IMG/WIN 11.webp";
 import helpdeskLogo from "../../IMG/HELPDESKAI.png";
 import "./admin.css";
@@ -154,15 +153,13 @@ function stripHtml(value = "") {
 
 function normalizeSurface(surface = "", terminalType = "") {
   const value = String(surface || "").toLowerCase();
-  if (["windows-terminal", "mac-terminal", "windows-os", "mac-os"].includes(value)) return value;
-  return String(terminalType || "").toLowerCase() === "mac-terminal" ? "mac-terminal" : "windows-terminal";
+  if (["windows-terminal", "windows-os"].includes(value)) return value;
+  return "windows-terminal";
 }
 
 function formatSurfaceLabel(surface = "") {
   const value = String(surface || "").toLowerCase();
-  if (value === "mac-terminal") return "Mac Terminal";
-  if (value === "windows-os") return "Windows OS";
-  if (value === "mac-os") return "Mac OS";
+  if (value === "windows-os") return "Windows 11";
   return "Windows Terminal";
 }
 
@@ -1283,7 +1280,7 @@ function AdminPageContent() {
         simulation: {
           ...modulePreview,
           surface: modulePreviewSurface,
-          terminalType: modulePreviewSurface === "windows-terminal" || modulePreviewSurface === "mac-terminal" ? modulePreviewSurface : null
+          terminalType: modulePreviewSurface === "windows-terminal" ? modulePreviewSurface : null
         },
         enabled: false
       };
@@ -1364,10 +1361,8 @@ function AdminPageContent() {
     ? Math.round(((previewSafeStep + 1) / previewTotalSteps) * 100)
     : 0;
   const previewSurfaceOptions = [
-    { value: "windows-terminal", label: "Win", icon: ">_" },
-    { value: "mac-terminal", label: "Mac", icon: "$_" },
-    { value: "windows-os", label: "Win OS", icon: "W" },
-    { value: "mac-os", label: "Mac OS", icon: "M" }
+    { value: "windows-terminal", label: "Windows Terminal", icon: ">_" },
+    { value: "windows-os", label: "Windows 11", icon: "W" },
   ];
   const isDraftPreview = Boolean(moduleDraftMeta);
   const isAiGeneratedDraft = moduleDraftMeta?.mode === "from_prompt";
@@ -1992,7 +1987,7 @@ function AdminPageContent() {
                   <button type="button" className={simulationView === "modules" ? "active" : ""} onClick={() => setSimulationView("modules")} role="tab" aria-selected={simulationView === "modules"}>Modules <span>{moduleStats.total}</span></button>
                   <button type="button" className={simulationView === "suggestions" ? "active" : ""} onClick={() => setSimulationView("suggestions")} role="tab" aria-selected={simulationView === "suggestions"}>Suggestion Queue <span>{promptInsightFeed.length}</span></button>
                 </div>
-                <div className="panel sim-workspace">
+                <div className={"panel sim-workspace"+(simulationView === "suggestions" ? " sim-requests-workspace" : "")}>
                   {simulationView === "suggestions" ? (
                     <>
                       <div className="sim-workspace-head sim-prompt-head">
@@ -2073,7 +2068,7 @@ function AdminPageContent() {
                               >
                                 View
                               </button>
-                              {["windows-terminal", "mac-terminal", "windows-os", "mac-os"].includes(moduleSimulation.surface) ? (
+                              {["windows-terminal", "windows-os"].includes(moduleSimulation.surface) ? (
                                 <button type="button" className="btn-sm" onClick={() => openModulePreview(moduleSimulation, {surface:moduleSimulation.surface,moduleId:module.id,edit:true})}>Edit</button>
                               ) : null}
                               <details className="module-more"><summary aria-label={"More actions for " + module.title}>More <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary><div className="module-more-options">
@@ -2091,7 +2086,7 @@ function AdminPageContent() {
                                 type="button"
                                 className={`btn-sm ${module.enabled ? "btn-danger" : ""}`}
                                 disabled={pending}
-                                onClick={() => !module.enabled && ["windows-terminal", "mac-terminal"].includes(moduleSimulation.surface) ? openModulePreview(moduleSimulation, {surface:moduleSimulation.surface,moduleId:module.id,edit:true}) : updateModule(module.id, { enabled: !module.enabled })}
+                                onClick={() => !module.enabled && ["windows-terminal"].includes(moduleSimulation.surface) ? openModulePreview(moduleSimulation, {surface:moduleSimulation.surface,moduleId:module.id,edit:true}) : updateModule(module.id, { enabled: !module.enabled })}
                               >
                                 {module.enabled ? "Disable" : "Enable"}
                               </button>
@@ -2141,7 +2136,7 @@ function AdminPageContent() {
             {moduleDraftError ? <div className="admin-alert error">{moduleDraftError}</div> : null}
 
 
-            {moduleEditorOpen && ["windows-terminal", "mac-terminal"].includes(modulePreviewSurface) ? (
+            {moduleEditorOpen && ["windows-terminal"].includes(modulePreviewSurface) ? (
               <TerminalModuleTester key={previewVerifiedModuleId || moduleDraftMeta?.sourcePrompt || modulePreview.title} definition={{...modulePreview,surface:modulePreviewSurface,terminalType:modulePreviewSurface}} existing={Boolean(previewVerifiedModuleId)} evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} reviewRequired={!!moduleDraftMeta?.rag} reviewed={sourceReviewConfirmed} reviewControl={moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={setSourceReviewConfirmed}/>:null} initialTest={moduleDraftMeta?.initialTest} sources={moduleDraftMeta?.rag?.sources} onChange={next=>{setModulePreview(next);setSourceReviewConfirmed(false);draftAutosave.change(next);}} saveStatus={draftAutosave.status} onSave={async (simulation,testToken) => {
                 const savedDraft=await draftAutosave.flush();
                 const draftInfo={draftId:savedDraft?.id,draftVersion:savedDraft?.version,baseRevision:moduleDraftMeta?.baseRevision,sourceReviewConfirmed};
@@ -2238,11 +2233,11 @@ function AdminPageContent() {
                           <span className="dot red" />
                           <span className="dot yellow" />
                           <span className="dot green" />
-                          <strong>{modulePreviewSurface === "mac-terminal" ? "Mac Terminal" : "Windows Terminal"}</strong>
+                          <strong>Windows Terminal</strong>
                         </div>
                         <TerminalEmulator
                           className="sim-runtime-terminal-body"
-                          initialMessage={`${modulePreviewSurface === "mac-terminal" ? "Mac" : "Windows"} Terminal simulation ready. Type 'help' for available commands.`}
+                          initialMessage={`Windows Terminal simulation ready. Type 'help' for available commands.`}
                           username="student"
                           hostname="DESKTOP-SIM"
                           initialPath="C:\\Users\\student"

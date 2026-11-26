@@ -3,18 +3,12 @@ const { normalizeCommand } = require('../utils/simulationCommands');
 const ACTIONS = {
  'filesystem.create-folder': {type:'command',surface:'windows-terminal',command:'mkdir MyNewFolder'},
  'filesystem.list': {type:'command',surface:'windows-terminal',command:'dir'},
- 'mac.filesystem.create-folder': {type:'command',surface:'mac-terminal',command:'mkdir MyNewFolder'},
- 'mac.filesystem.list': {type:'command',surface:'mac-terminal',command:'ls'},
  'terminal.open-admin': {type:'checkpoint', surface:'windows-terminal', command:'', output:'Simulated administrator session opened.'},
  'account.inspect': {type:'command',surface:'windows-terminal',command:'Get-ADUser -Identity jdoe -Properties LockedOut'},
  'account.unlock': {type:'command',surface:'windows-terminal',command:'Unlock-ADAccount -Identity jdoe'},
  'account.reset-password': {type:'command',surface:'windows-terminal',command:'Set-ADAccountPassword -Identity jdoe -Reset -NewPassword (ConvertTo-SecureString "Training-Only-42!" -AsPlainText -Force)'},
  'account.verify': {type:'command',surface:'windows-terminal',command:'Get-ADUser -Identity jdoe -Properties LockedOut,PasswordLastSet'},
  'account.test-login': {type:'checkpoint',surface:'windows-terminal',command:'',output:'Simulated login succeeded for fictional account jdoe.'},
- 'mac.terminal.open-admin': {type:'checkpoint', surface:'mac-terminal',command:'',output:'Simulated administrator terminal opened.'},
- 'mac.network.inspect': {type:'command',surface:'mac-terminal',command:'networksetup -getdnsservers Wi-Fi'},
- 'mac.network.flush-dns': {type:'command',surface:'mac-terminal',command:'sudo dscacheutil -flushcache'},
- 'mac.network.test': {type:'command',surface:'mac-terminal',command:'dig intranet.company.local'},
  'network.inspect': {type:'command',surface:'windows-terminal',command:'ipconfig /all'},
  'network.flush-dns': {type:'command',surface:'windows-terminal',command:'ipconfig /flushdns'},
  'network.test': {type:'command',surface:'windows-terminal',command:'nslookup intranet.company.local'},
@@ -24,21 +18,21 @@ function canonicalCommand(input){return (String(input || '').trim().match(/"[^"]
 function initialState(){return {elevated:false,locked:true,passwordReset:false,dnsBroken:true,folderCreated:false};}
 function execute(actionId, state){
  const next={...state};let output='';
- if(actionId==='filesystem.create-folder'||actionId==='mac.filesystem.create-folder'){
+ if(actionId==='filesystem.create-folder'){
   if(next.folderCreated)return {ok:false,state,output:'MyNewFolder already exists in the simulated working directory.'};
   next.folderCreated=true;output='Created simulated folder: MyNewFolder';
  }
- if(actionId==='filesystem.list'||actionId==='mac.filesystem.list')output=next.folderCreated?'MyNewFolder':'The simulated working directory is empty.';
- if(actionId==='terminal.open-admin'||actionId==='mac.terminal.open-admin'){next.elevated=true;output=ACTIONS[actionId].output;}
+ if(actionId==='filesystem.list')output=next.folderCreated?'MyNewFolder':'The simulated working directory is empty.';
+ if(actionId==='terminal.open-admin'){next.elevated=true;output=ACTIONS[actionId].output;}
  if(actionId.startsWith('account.')&&!next.elevated)return {ok:false,state,output:'Open the simulated administrator session first.'};
  if(actionId==='account.inspect'||actionId==='account.verify')output='SamAccountName: jdoe\nLockedOut: '+next.locked+'\nPassword reset in this attempt: '+next.passwordReset;
  if(actionId==='account.unlock'){next.locked=false;output='Account jdoe unlocked.';}
  if(actionId==='account.reset-password'){if(next.locked)return {ok:false,state,output:'Unlock the account before resetting its training password.'};next.passwordReset=true;output='Training password reset for fictional account jdoe.';}
  if(actionId==='account.verify'&&(next.locked||!next.passwordReset))return {ok:false,state,output:output+'\nRecovery is not complete.'};
  if(actionId==='account.test-login'){if(next.locked||!next.passwordReset)return {ok:false,state,output:'Simulated login failed: account recovery is incomplete.'};output=ACTIONS[actionId].output;}
- if(actionId==='network.inspect'||actionId==='mac.network.inspect')output='IPv4: 10.0.0.42\nGateway: 10.0.0.1\nDNS cache: '+(next.dnsBroken?'stale':'healthy');
- if(actionId==='network.flush-dns'||actionId==='mac.network.flush-dns'){next.dnsBroken=false;output='Successfully flushed the simulated DNS cache.';}
- if(actionId==='network.test'||actionId==='mac.network.test'){output=next.dnsBroken?'DNS lookup failed: stale cache.':'intranet.company.local -> 10.0.0.10';if(next.dnsBroken)return {ok:false,state,output};}
+ if(actionId==='network.inspect')output='IPv4: 10.0.0.42\nGateway: 10.0.0.1\nDNS cache: '+(next.dnsBroken?'stale':'healthy');
+ if(actionId==='network.flush-dns'){next.dnsBroken=false;output='Successfully flushed the simulated DNS cache.';}
+ if(actionId==='network.test'){output=next.dnsBroken?'DNS lookup failed: stale cache.':'intranet.company.local -> 10.0.0.10';if(next.dnsBroken)return {ok:false,state,output};}
  if(actionId==='system.identity')output='TRAINING\\student';
  return {ok:true,state:next,output};
 }
@@ -52,7 +46,7 @@ function withExpectedOutputs(definition){
 }
 function validateDefinition(definition){
  const errors=[];const steps=definition?.steps;
- if(!['windows-terminal','mac-terminal'].includes(definition?.surface))errors.push('Choose a supported terminal surface.');
+ if(definition?.surface!=='windows-terminal')errors.push('Choose Windows Terminal.');
  if(!Array.isArray(steps)||!steps.length||steps.length>12)errors.push('Provide between 1 and 12 steps.');
  let state=initialState();
  for(const [index,step] of (Array.isArray(steps)?steps:[]).entries()){

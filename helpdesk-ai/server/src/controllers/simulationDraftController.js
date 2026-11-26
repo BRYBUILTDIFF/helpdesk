@@ -19,11 +19,13 @@ async function createStoredDraft(ownerId, input) {
   } });
 }
 async function listDrafts(req, res, next) { try {
-  return res.json({ drafts: await prisma.simulationDraft.findMany({ where: { ownerId: req.user.id, state: 'DRAFT' }, orderBy: { updatedAt: 'desc' }, take: 100 }) });
+  const drafts=await prisma.simulationDraft.findMany({ where: { ownerId: req.user.id, state: 'DRAFT' }, orderBy: { updatedAt: 'desc' }, take: 100 });
+  return res.json({drafts:drafts.filter(draft=>require('../utils/simulationSurfaces').supportsWindowsSimulation(draft.simulation))});
 } catch (e) { next(e); } }
 async function getDraft(req,res,next){try{
   const draft=await prisma.simulationDraft.findFirst({where:{id:req.params.id,ownerId:req.user.id,state:'DRAFT'}});
   if(!draft)throw fail(404,'Draft not found.');
+  if(!require('../utils/simulationSurfaces').supportsWindowsSimulation(draft.simulation))throw fail(410,'This historical platform is no longer supported. Create a Windows simulation instead.');
   const runtime=require('../services/terminalRuntime');
   const definition=normalizeSimulation(draft.simulation);
   const receipt=await prisma.simulationTestReceipt.findFirst({where:{actorId:req.user.id,definitionHash:runtime.definitionHash(definition),expiresAt:{gt:new Date()}},orderBy:{createdAt:'desc'}});

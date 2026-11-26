@@ -167,7 +167,7 @@ function buildQuestionFromModule(module) {
 
 function needsOperatingSystemClarification(message) {
   const input = String(message || "").trim();
-  return Boolean(input) && !OPERATING_SYSTEM_PATTERN.test(input) && TERMINAL_REQUEST_PATTERN.test(input) && PLATFORM_SPECIFIC_TASK_PATTERN.test(input);
+  return false; // Windows 11 is the supported environment; no OS chooser is needed.
 }
 
 function buildFallbackSimulationDefinition(module) {
@@ -826,7 +826,7 @@ function normalizeLoadedSession(session, idx) {
             moduleId: String(session.windowsOsSimulation.moduleId),
             reviewStatus: session.windowsOsSimulation.reviewStatus || (session.windowsOsSimulation.lastEndedAt ? "ENDED" : null),
         simulationSessionId: session.windowsOsSimulation.simulationSessionId || null,
-            title: String(session.windowsOsSimulation.title || incomingTitle || "Windows OS Simulation"),
+            title: String(session.windowsOsSimulation.title || incomingTitle || "Windows 11 Simulation"),
             steps: Array.isArray(session.windowsOsSimulation.steps) ? session.windowsOsSimulation.steps : [],
             completedStepIndexes: Array.isArray(session.windowsOsSimulation.completedStepIndexes)
               ? session.windowsOsSimulation.completedStepIndexes.filter((index) => Number.isInteger(index) && index >= 0)
@@ -1223,20 +1223,10 @@ function detectScenarioTypeFromContext({ steps = [], sourceText = "", firstPromp
 }
 
 function normalizeTerminalType(value = "") {
-  return String(value || "").toLowerCase() === "mac-terminal" ? "mac-terminal" : "windows-terminal";
+  return "windows-terminal";
 }
 
 function getTerminalProfile(terminalType = "windows-terminal") {
-  const isMac = normalizeTerminalType(terminalType) === "mac-terminal";
-  if (isMac) {
-    return {
-      title: "Mac Terminal",
-      initialMessage: "Mac Terminal simulation ready. Type 'help' for available commands.",
-      username: "student",
-      hostname: "MACBOOK-SIM",
-      initialPath: "/Users/student"
-    };
-  }
   return {
     title: "Windows Terminal",
     initialMessage: "Windows Terminal simulation ready. Type 'help' for available commands.",
@@ -1247,7 +1237,7 @@ function getTerminalProfile(terminalType = "windows-terminal") {
 }
 
 function createSimulationCanvasState(steps, scenarioType, meta = {}) {
-  const safeSteps = Array.isArray(steps) ? steps : [];
+  const safeSteps = ['mac-terminal','mac-os'].includes(meta?.terminalType||meta?.surface) ? [] : Array.isArray(steps) ? steps : [];
   return {
     scenarioType: scenarioType || "general",
     terminalType: normalizeTerminalType(meta?.terminalType),
@@ -2164,7 +2154,7 @@ export default function DashboardPage() {
       id: `${Date.now()}-os-choice`,
       role: "ai",
       type: "os-choice",
-      text: "Which operating system are you using?",
+      text: "This guide uses Windows 11 and Windows Terminal.",
       originalPrompt: String(originalPrompt || ""),
       time: formatTime()
     });
@@ -2275,7 +2265,7 @@ export default function DashboardPage() {
     if (operatingSystem === "Not sure") {
       pushAiMessage(
         activeSessionId,
-        "Look for the Windows Start button at the bottom-left of your screen, or the Apple menu at the top-left. Once you know whether you are using Windows, macOS, or Linux, select or type it and I will provide the correct terminal steps.",
+        "This system focuses on Windows 11. Open Settings > System > About to check your Windows version. Terminal guidance uses PowerShell or Command Prompt.",
         "text"
       );
       return;
@@ -2315,7 +2305,7 @@ export default function DashboardPage() {
       const canReuseCurrentSession = currentSession?.isSimulationSession && currentSession?.windowsOsSimulation?.moduleId === simulationId;
       const targetSession = canReuseCurrentSession
         ? currentSession
-        : createSession(sim.title || suggestion?.title || "Windows OS Simulation", { isSimulationSession: true });
+        : createSession(sim.title || suggestion?.title || "Windows 11 Simulation", { isSimulationSession: true });
       const sessionId = targetSession.id;
       loadedWorkspaceSessionRef.current = sessionId;
       if (!canReuseCurrentSession) {
@@ -2333,7 +2323,7 @@ export default function DashboardPage() {
                 updatedAt: new Date().toISOString(),
                 windowsOsSimulation: {
                   moduleId: simulationId,
-                  title: sim.title || suggestion?.title || "Windows OS Simulation",
+                  title: sim.title || suggestion?.title || "Windows 11 Simulation",
                   steps: sim.steps || [],
                   completedStepIndexes: [],
                   lastEndedAt: null
@@ -2343,7 +2333,7 @@ export default function DashboardPage() {
         )
       );
       setPendingSimulationCreation(false);
-      setActiveWindowsOsModule({ id: simulationId, title: sim.title || suggestion?.title || "Windows OS Simulation", steps: sim.steps || [], sessionId, walkthroughOnOpen: !canReuseCurrentSession });
+      setActiveWindowsOsModule({ id: simulationId, title: sim.title || suggestion?.title || "Windows 11 Simulation", steps: sim.steps || [], sessionId, walkthroughOnOpen: !canReuseCurrentSession });
       return;
     }
 
@@ -2501,7 +2491,7 @@ export default function DashboardPage() {
       setActiveWindowsOsModule({
         id: session.windowsOsSimulation.moduleId,
         simulationSessionId: session.windowsOsSimulation.simulationSessionId || null,
-        title: session.windowsOsSimulation.title || session.title || "Windows OS Simulation",
+        title: session.windowsOsSimulation.title || session.title || "Windows 11 Simulation",
         steps: Array.isArray(session.windowsOsSimulation.steps) ? session.windowsOsSimulation.steps : [],
         completedStepIndexes: Array.isArray(session.windowsOsSimulation.completedStepIndexes) ? session.windowsOsSimulation.completedStepIndexes : [],
         sessionId: session.id
@@ -3364,7 +3354,7 @@ export default function DashboardPage() {
           <h3>Which operating system are you using?</h3>
           <p>To provide the correct commands, choose your device before I create the step-by-step guide.</p>
           <div className="os-choice-options">
-            {["Windows", "macOS", "Linux", "Not sure"].map((operatingSystem) => (
+            {["Windows 11", "Not sure"].map((operatingSystem) => (
               <button
                 key={operatingSystem}
                 type="button"

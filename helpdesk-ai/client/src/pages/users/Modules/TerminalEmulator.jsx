@@ -129,7 +129,7 @@ export default function TerminalEmulator({
   const inputCursorRef = useRef(0);
   const historyRef = useRef([]);
   const historyIndexRef = useRef(0);
-  const currentPathRef = useRef(platform === "mac-terminal" ? initialPath : normalizePath(initialPath));
+  const currentPathRef = useRef(normalizePath(initialPath));
   const onCommandRef = useRef(onCommand);
   const executeCommandRef = useRef(executeCommand);
   executeCommandRef.current = executeCommand;
@@ -145,7 +145,7 @@ export default function TerminalEmulator({
   }, [resolveUnknownCommand]);
 
   useEffect(() => {
-    currentPathRef.current = platform === "mac-terminal" ? initialPath : normalizePath(initialPath);
+    currentPathRef.current = normalizePath(initialPath);
   }, [initialPath, platform]);
 
   useEffect(() => {
@@ -198,7 +198,7 @@ export default function TerminalEmulator({
     }
 
     let disposed = false;
-    const promptText = () => platform === "mac-terminal" ? `${username}@${hostname} ${currentPathRef.current} % ` : `${currentPathRef.current}> `;
+    const promptText = () => `${currentPathRef.current}> `;
     const writePrompt = () => {
       const prompt = promptText();
       // The extra blank normalizes xterm's pending wrap at the right margin.

@@ -1,8 +1,8 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const r=require('../src/services/terminalRuntime');
 const definition=()=>r.accountDefinition();
-test('folder creation changes listing state on both terminal surfaces',()=>{
- for(const [surface,prefix] of [['windows-terminal',''],['mac-terminal','mac.']]){
+test('folder creation changes listing state in Windows Terminal',()=>{
+ for(const [surface,prefix] of [['windows-terminal','']]){
   const ids=[prefix+'filesystem.list',prefix+'filesystem.create-folder',prefix+'filesystem.list'];
   const d={surface,steps:ids.map(actionId=>({title:actionId,type:'command',actionId,expectedCommands:[r.ACTIONS[actionId].command]}))};
   let current=r.newRuntime(d);

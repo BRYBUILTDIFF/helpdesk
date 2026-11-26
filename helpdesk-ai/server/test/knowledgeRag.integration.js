@@ -93,5 +93,14 @@ test('real PostgreSQL ingestion, full-text retrieval, auth, generation and sourc
   assert.equal((await api(base+'/simulation-modules/draft','POST',{mode:'from_prompt',sourcePrompt:prompt,evidenceToken:latestSearch.body.evidenceToken})).status,409,'Deleted evidence cannot generate new drafts');
   const preserved=await prisma.simulationModule.findUnique({where:{id:moduleId}});assert.equal(preserved.provenance.rag.sources[0].text,text,'Saved snapshots survive deletion');
   const reupload=new FormData();reupload.append('files',new Blob([text]),'account-guide.txt');assert.equal((await api(base+'/knowledge','POST',reupload)).body.results[0].ok,true,'Deleted library content can be uploaded again');
+  const macDefinition={title:'Historical Mac guide',surface:'mac-terminal',terminalType:'mac-terminal',steps:[{title:'Old Mac step',command:'ls'}]};
+  const mac=await prisma.simulationModule.create({data:{id:'historical-mac',title:'Historical Mac guide',category:'General',difficulty:'Easy',enabled:true,simulation:macDefinition}});
+  assert.ok(!(await api('/api/simulations/modules','GET',null,'user')).body.modules.some(module=>module.id===mac.id));
+  assert.equal((await api('/api/simulations/modules/'+mac.id+'/sources','GET',null,'user')).status,404);
+  assert.equal((await api('/api/simulations/modules/'+mac.id+'/attempts','POST',{},'user')).status,404);
+  const oldDraft=await prisma.simulationDraft.create({data:{ownerId:admin.id,title:'Historical Mac draft',category:'General',difficulty:'Easy',simulation:macDefinition}});
+  assert.ok(!(await api(base+'/simulation-drafts')).body.drafts.some(draft=>draft.id===oldDraft.id));
+  assert.equal((await api(base+'/simulation-drafts/'+oldDraft.id)).status,410);
+  assert.ok(await prisma.simulationModule.findUnique({where:{id:mac.id}}),'Historical records must not be deleted');
  }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await prisma.$disconnect();}
 });

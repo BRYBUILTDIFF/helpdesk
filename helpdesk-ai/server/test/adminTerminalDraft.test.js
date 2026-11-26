@@ -36,6 +36,12 @@ test('unsupported platforms, physical repairs, unrelated tasks and short request
   assert.equal(result.draft,undefined);
  }
 });
+test('Mac simulation prompts are rejected before retrieval or generation',async()=>{
+ for(const prompt of ['Create a folder in Mac Terminal','Recover account permissions on macOS']){
+  const result=await invoke(prompt);assert.equal(result.code,'SIMULATION_PROMPT_UNSUPPORTED');assert.equal(result.draft,undefined);assert.match(result.message,/Windows Terminal and Windows 11/);
+ }
+ const result=await invoke('Windows Terminal inspect MAC address network');assert.ok(result.draft);
+});
 test('AI cannot pair a folder command with an account action in a saved draft',async()=>{
  badExecutable=true;
  try{await assert.rejects(invoke,error=>error.status===422&&error.publicMessage.includes('Step 2: expectedCommands'));}

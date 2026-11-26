@@ -3,7 +3,7 @@ const prisma = require("../prisma");
 const { terminateWindowsSimulationSession } = require("../services/windowsSimulationService");
 
 const ALLOWED_DIFFICULTY = new Set(["Easy", "Medium", "Hard"]);
-const ALLOWED_SURFACES = new Set(["windows-terminal", "mac-terminal", "windows-os", "mac-os"]);
+const {WINDOWS_SURFACES:ALLOWED_SURFACES,supportsWindowsSimulation}=require('../utils/simulationSurfaces');
 const safeText = value => require("../utils/redact").redactSecrets(plainDescription(value)).replace(/(?:https?:\/\/|www\.)[^\s]+/gi, "[link removed]").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "").slice(0, 4000);
 
 function sanitizeId(raw) {
@@ -45,12 +45,11 @@ function normalizeSimulation(definition, fallbackTitle = "Simulation Scenario") 
   }
   const requestedSurface = String(definition.surface || "").trim().toLowerCase();
   const legacyTerminalType = String(definition.terminalType || "").trim().toLowerCase();
+  if((requestedSurface&&!ALLOWED_SURFACES.has(requestedSurface))||(!requestedSurface&&legacyTerminalType&&!ALLOWED_SURFACES.has(legacyTerminalType)))throw Object.assign(new Error('Only Windows 11 and Windows Terminal simulations are supported.'),{status:400,publicMessage:'Only Windows 11 and Windows Terminal simulations are supported.'});
   const surface = ALLOWED_SURFACES.has(requestedSurface)
     ? requestedSurface
-    : legacyTerminalType === "mac-terminal"
-      ? "mac-terminal"
-      : "windows-terminal";
-  const terminalType = surface === "windows-terminal" || surface === "mac-terminal" ? surface : null;
+    : "windows-terminal";
+  const terminalType = surface === "windows-terminal" ? surface : null;
   const steps = Array.isArray(definition.steps)
     ? definition.steps.slice(0, 12).map((step, index) => normalizeSimulationStep(step, index)).filter((step) => step.title)
     : [];
@@ -64,7 +63,7 @@ function normalizeSimulation(definition, fallbackTitle = "Simulation Scenario") 
     terminalType,
     steps
   };
-  return ["windows-terminal", "mac-terminal"].includes(surface) ? require("../services/terminalRuntime").withExpectedOutputs(normalized) : normalized;
+  return ["windows-terminal"].includes(surface) ? require("../services/terminalRuntime").withExpectedOutputs(normalized) : normalized;
 }
 
 function mapDbModule(module) {
@@ -80,7 +79,7 @@ function mapDbModule(module) {
     avgSteps: Number(module.avgSteps || 0),
     sourcePrompt: module.sourcePrompt || "",
     simulation: normalizeSimulation(module.simulation, module.title),
-    validationErrors: ["windows-terminal", "mac-terminal"].includes(module.simulation?.surface) ? require("../services/terminalRuntime").validateDefinition(normalizeSimulation(module.simulation, module.title)) : [],
+    validationErrors: ["windows-terminal"].includes(module.simulation?.surface) ? require("../services/terminalRuntime").validateDefinition(normalizeSimulation(module.simulation, module.title)) : [],
     revision: module.revision || 1,
     createdById: module.createdById ?? null,
     updatedById: module.updatedById ?? null,
@@ -109,11 +108,11 @@ function buildPayload(payload = {}) {
 
 async function listModules(options = {}) {
   const modules = await prisma.simulationModule.findMany({ where: options.onlyEnabled ? { enabled: true } : undefined, orderBy: { createdAt: "desc" } });
-  return modules.map(module => ({...mapDbModule(module),...(!options.onlyEnabled && module.provenance ? {provenance:module.provenance} : {})}));
+  return modules.filter(module=>supportsWindowsSimulation(module.simulation)).map(module => ({...mapDbModule(module),...(!options.onlyEnabled && module.provenance ? {provenance:module.provenance} : {})}));
 }
 async function getModuleById(id) {
   const module = await prisma.simulationModule.findUnique({ where: { id: String(id || "") } });
-  return module ? mapDbModule(module) : null;
+  return module&&supportsWindowsSimulation(module.simulation) ? mapDbModule(module) : null;
 }
 const jsonValue = value => JSON.parse(JSON.stringify(value));
 const conflict = message => Object.assign(new Error(message), {status:409, publicMessage:message});
@@ -145,7 +144,7 @@ async function saveRevision(tx, module, actorId, testReceiptId) {
 async function createModule(payload = {}) {
   const normalized = buildPayload(payload);
   if (!normalized) return null;
-  const terminal = ['windows-terminal','mac-terminal'].includes(normalized.simulation?.surface);
+  const terminal = ['windows-terminal'].includes(normalized.simulation?.surface);
   if(terminal && (normalized.enabled || payload.testToken)) require('../services/terminalRuntime').assertDefinition(normalized.simulation);
   const base = sanitizeId(payload.id || normalized.title) || 'sim-'+Date.now().toString(36);
   for(let attempt=1;attempt<=100;attempt++) {
@@ -176,9 +175,10 @@ async function updateModule(id, patch = {}) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${String(id)}))`;
     const current=await tx.simulationModule.findUnique({where:{id:String(id)}});
     if(!current)return null;
+    if(!supportsWindowsSimulation(current.simulation))throw conflict('This historical platform is no longer supported. Create a Windows simulation instead.');
     if(patch.baseRevision!==undefined && patch.baseRevision!==current.revision) throw conflict('This module has a newer revision. Reopen it before publishing changes.');
     const target=data.simulation||normalizeSimulation(current.simulation,current.title);
-    const terminal=['windows-terminal','mac-terminal'].includes(target?.surface);
+    const terminal=['windows-terminal'].includes(target?.surface);
     const requiresTest=terminal && (data.enabled??current.enabled) && (data.enabled===true || Boolean(data.simulation));
     if(requiresTest)require('../services/terminalRuntime').assertDefinition(target);
     const testReceiptId=await checkedReceipt(tx,patch,target,requiresTest);
@@ -224,11 +224,11 @@ async function recordModuleCompletion({ moduleId, userId, attemptKey, surface, s
         throw error;
       }
       const module = await tx.simulationModule.findUnique({ where: { id: safeId } });
-      return module ? { module: mapDbModule(module), recorded: false } : null;
+      return module&&supportsWindowsSimulation(module.simulation) ? { module: mapDbModule(module), recorded: false } : null;
     }
 
     const module = await tx.simulationModule.findUnique({ where: { id: safeId } });
-    if (!module || !module.enabled) return null;
+    if (!module || !module.enabled || !supportsWindowsSimulation(module.simulation)) return null;
     const expectedSteps = Array.isArray(module.simulation?.steps) ? module.simulation.steps.length : 0;
     const expectedSurface = module.simulation?.surface || module.simulation?.terminalType || "windows-terminal";
     if (surface !== expectedSurface) {
@@ -242,7 +242,7 @@ async function recordModuleCompletion({ moduleId, userId, attemptKey, surface, s
 
     let verification = "self-reported";
     let completedSteps = expectedSteps > 0 ? Math.min(requestedSteps, expectedSteps) : requestedSteps;
-    if (["windows-terminal", "mac-terminal"].includes(surface)) {
+    if (["windows-terminal"].includes(surface)) {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${safeAttemptKey}))`;
       const attempt = await tx.simulationAttempt.findFirst({ where: { id: safeAttemptKey, userId, moduleId: safeId, surface } });
       if (!attempt || attempt.expiresAt <= new Date() || attempt.expected?.version !== 2 || attempt.expected.status !== "ACTIVE" || require("../services/terminalRuntime").definitionHash(normalizeSimulation(attempt.expected.definition, module.title)) !== require("../services/terminalRuntime").definitionHash(normalizeSimulation(module.simulation, module.title)) || attempt.nextStep !== attempt.expected.definition.steps.length || !attempt.expected.definition.steps.length) {
