@@ -9,3 +9,19 @@ body button.modal-close-button.modal-close-button.modal-close-button {
 body button.modal-close-button svg { display:block; flex:none; width:18px; height:18px; pointer-events:none; }
 body button.modal-close-button:focus-visible { outline:2px solid var(--color-text-info, #27845b); outline-offset:3px; }
 body button.modal-close-button:disabled { opacity:.5; cursor:not-allowed; }
+
+/* One close-control treatment for every administrative dialog. */
+body .admin-ui button.modal-close-button.modal-close-button.modal-close-button {
+  border:1px solid var(--color-border-tertiary,#cad8cd);
+  background:var(--color-background-secondary,#f4f7f2);
+  color:var(--color-text-primary,#173b35);
+  box-shadow:none;
+}
+body .admin-ui button.modal-close-button.modal-close-button.modal-close-button:hover:not(:disabled) {
+  background:var(--color-background-info,#e4efe5);
+  border-color:var(--color-text-secondary,#52645b);
+  color:var(--color-text-primary,#173b35);
+}
+body .admin-ui button.modal-close-button.modal-close-button.modal-close-button:active:not(:disabled) {
+  background:var(--color-background-tertiary,#dce8dd);
+}

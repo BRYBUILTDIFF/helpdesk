@@ -2508,7 +2508,7 @@ function AdminPageContent() {
                   </p>
                 </div>
               </div>
-              <ModalCloseButton type="button" className="account-modal-close" onClick={closeUserModal} aria-label="Close" />
+              <ModalCloseButton type="button" className="account-modal-close" onClick={closeUserModal} aria-label="Close user form" />
             </div>
 
             {userFormError ? <div className="admin-alert error">{userFormError}</div> : null}

@@ -333,6 +333,7 @@ model ChatTurn {
 }
 
 model KnowledgeDocument {
+  familyId     String?
   id String @id
   title String
   filename String
@@ -348,6 +349,7 @@ model KnowledgeDocument {
   approvedAt DateTime?
   createdAt DateTime @default(now())
   chunks KnowledgeChunk[]
+  @@unique([familyId,version], map: "KnowledgeDocument_family_version_key")
   @@index([status])
 }
 model KnowledgeChunk {

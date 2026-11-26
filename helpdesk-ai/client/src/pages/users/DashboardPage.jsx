@@ -824,12 +824,14 @@ function normalizeLoadedSession(session, idx) {
       session?.windowsOsSimulation && typeof session.windowsOsSimulation === "object" && session.windowsOsSimulation.moduleId
         ? {
             moduleId: String(session.windowsOsSimulation.moduleId),
-            simulationSessionId: session.windowsOsSimulation.simulationSessionId || null,
+            reviewStatus: session.windowsOsSimulation.reviewStatus || (session.windowsOsSimulation.lastEndedAt ? "ENDED" : null),
+        simulationSessionId: session.windowsOsSimulation.simulationSessionId || null,
             title: String(session.windowsOsSimulation.title || incomingTitle || "Windows OS Simulation"),
             steps: Array.isArray(session.windowsOsSimulation.steps) ? session.windowsOsSimulation.steps : [],
             completedStepIndexes: Array.isArray(session.windowsOsSimulation.completedStepIndexes)
               ? session.windowsOsSimulation.completedStepIndexes.filter((index) => Number.isInteger(index) && index >= 0)
               : [],
+            reviewStatus: ["ENDED", "COMPLETED"].includes(session.windowsOsSimulation.reviewStatus) ? session.windowsOsSimulation.reviewStatus : null,
             lastEndedAt: session.windowsOsSimulation.lastEndedAt || null
           }
         : null,
@@ -2288,6 +2290,11 @@ export default function DashboardPage() {
 
   function blockNavigationDuringWindowsLab() {
     if (!activeWindowsOsModule) return false;
+    if (["ENDED", "COMPLETED"].includes(activeWindowsOsModule.reviewStatus)) {
+      setActiveWindowsOsModule(null);
+      setLabNavigationNoticeOpen(false);
+      return false;
+    }
     setLabNavigationNoticeOpen(true);
     return true;
   }
@@ -4169,6 +4176,13 @@ export default function DashboardPage() {
                 title={activeWindowsOsModule.title}
                 steps={activeWindowsOsModule.steps}
                 completedStepIndexes={activeWindowsOsModule.completedStepIndexes || []}
+                initialReviewStatus={activeWindowsOsModule.reviewStatus}
+                onLabEnded={(reviewStatus) => {
+                  const chatId = activeWindowsOsModule.sessionId;
+                  setActiveWindowsOsModule(current => current?.sessionId === chatId ? {...current, reviewStatus} : current);
+                  setLabNavigationNoticeOpen(false);
+                  setSessions(current => current.map(session => session.id === chatId ? {...session, windowsOsSimulation: {...session.windowsOsSimulation, reviewStatus, lastEndedAt:new Date().toISOString()}} : session));
+                }}
                 onSessionReady={(simulationSession) => {
                   setSessions(currentSessions => currentSessions.map(session =>
                     session.id === activeWindowsOsModule.sessionId && session.windowsOsSimulation?.simulationSessionId !== simulationSession.id

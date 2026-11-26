@@ -6,6 +6,14 @@ Students can expand **Sources for this simulation** in terminal and Windows simu
 
 ## Workflow
 
+The source library places uploads on the left and document management on the right. Each row shows its upload date, version, and saved-simulation usage. Open a source to rename it, review extracted text, inspect **Used by**, or open its **Versions** history. Renaming updates future search text; published snapshots retain the original name and text.
+
+**Delete** permanently removes the entire source family: all versions, extracted document text, and searchable passages. Its confirmation previews the version/passage counts and saved simulation/draft references and requires typing `DELETE`. The authenticated admin API also requires the exact previewed version IDs and rejects a stale version list. Source chunks are removed transactionally by the database cascade. This frees library storage and allows the content to be uploaded again. Saved simulation, revision, and draft evidence snapshots are separate copies and are retained; deletion is not an erasure of those snapshots. Drafts or evidence previews referencing deleted sources cannot be newly generated/published without approved replacement evidence. No existing source is deleted automatically by deploying this feature.
+
+Use **Upload new version** inside a source to keep a revised guide in the same family, even if its filename changes. The revision starts as a draft. Approving a version archives other approved versions in that family, so future searches use only one approved version. Existing published simulations keep their stored snapshots; archived sources still prevent new publication of drafts that depend on them. Old versions can be reopened and restored to draft for review. Archive confirmation explains the impact; archiving neither deletes text nor frees the storage quota. Duplicate-upload errors link to the existing source.
+
+**Find supporting passages** returns a signed preview bound to the current admin, prompt, exact passages, and a 10-minute expiry. Knowledge Sources sends this preview with generation rather than repeating retrieval. The backend validates the signature and rechecks source approval/version/content before generation. If the preview expires or a source is revoked, search again. Legacy API calls without a preview continue to retrieve server-side; the current admin UI always sends the preview.
+
 1. In **Knowledge Sources**, upload up to ten Word `.docx` or UTF-8 `.txt` files per batch, at most 2 MB each. Legacy `.doc`, PDFs, and image-only documents are not supported.
 2. Read the extracted text and approve relevant sources. Extraction uses raw text, never converted HTML. Common credential patterns are redacted; review source material privately before uploading because automated redaction is not exhaustive.
 3. Enter a simulation request that describes both the issue and surface, such as “Windows Terminal account lockout recovery using PowerShell.” Search the approved passages and generate a draft. Prompt patterns in the queue can inform which guides to upload, but generation takes place only in Knowledge Sources.
@@ -21,6 +29,8 @@ For terminal drafts, expected outputs are calculated by the simulator from the o
 ## Deploy in this order
 
 These are new schema changes. The implementation does not apply them to Render or deploy either service automatically.
+
+The version-management update adds `KnowledgeDocument.familyId` and a family/version unique index through `20261126000100_knowledge_source_families`. Existing documents are backfilled into separate families; existing unrelated uploads are not automatically merged. Apply this migration before deploying the updated backend. The local development database has been migrated; production remains separate.
 
 1. Take and verify a database backup using your established maintenance procedure.
 2. From `helpdesk-ai/server`, apply migrations with the private owner configuration:

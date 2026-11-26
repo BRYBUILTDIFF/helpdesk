@@ -76,7 +76,7 @@ Deploy the reviewed API/frontend together. An old frontend does not handle the n
 
 ## 5. Configure administrator email verification
 
-Use the Resend HTTPS API for email delivery on the Render free instance. Google Cloud Console and Gmail OAuth credentials are not required. The administrator recipient remains `helpdescai@gmail.com`; it comes from the authenticated account record.
+Use the Resend HTTPS API for email delivery on the Render free instance. Google Cloud Console and Gmail OAuth credentials are not required. The administrator recipient remains `helpdesksimulations@gmail.com`; it comes from the authenticated account record.
 
 Set these variables privately in **Render > your API service > Environment**:
 
@@ -90,10 +90,10 @@ Keep the existing `SECURITY_ENCRYPTION_KEY`. These settings belong only to the b
 
 ### Set up Resend
 
-1. Create a [Resend account](https://resend.com/) using `helpdescai@gmail.com` and verify that account email.
+1. Create a [Resend account](https://resend.com/) using `helpdesksimulations@gmail.com` and verify that account email.
 2. Create an API key with sending access and copy it directly into Render's `RESEND_API_KEY`.
-3. For an initial delivery test to that same account email, set `ADMIN_EMAIL_FROM=HelpDesk AI <onboarding@resend.dev>`. Resend restricts its testing sender to the email associated with your Resend account. If your Resend account uses another email, this sender cannot deliver to `helpdescai@gmail.com`.
-4. For production or additional administrators, [verify a domain you control](https://resend.com/domains), add the DNS records requested by Resend, and change `ADMIN_EMAIL_FROM` to an address on that domain, such as `HelpDesk AI <security@your-domain.example>`. A Gmail recipient is supported, but do not use `helpdescai@gmail.com` as the Resend sender.
+3. For an initial delivery test to that same account email, set `ADMIN_EMAIL_FROM=HelpDesk AI <onboarding@resend.dev>`. Resend restricts its testing sender to the email associated with your Resend account. If your Resend account uses another email, this sender cannot deliver to `helpdesksimulations@gmail.com`.
+4. For production or additional administrators, [verify a domain you control](https://resend.com/domains), add the DNS records requested by Resend, and change `ADMIN_EMAIL_FROM` to an address on that domain, such as `HelpDesk AI <security@your-domain.example>`. A Gmail recipient is supported, but do not use `helpdesksimulations@gmail.com` as the Resend sender.
 5. Save the Render variables and deploy the API and frontend changes, then follow the delivery checks below.
 
 See [Resend's testing sender restriction](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain) and [email API reference](https://resend.com/docs/api-reference/emails/send-email). The testing sender is for initial verification; configure a verified domain for production.
@@ -107,7 +107,7 @@ Missing configuration and delivery failures fail closed. Codes are never returne
 3. Codes expire after five minutes. **Resend code** shows a countdown and becomes available after a one-minute cooldown. Resending replaces the old code; reloading restores the server cooldown and reuses an active code. Five incorrect attempts require a new code.
 4. Reloading clears the in-memory proof. Proofs last at most one hour; mutations require verification within five minutes. Reverify and deliberately retry a challenged change.
 
-Existing administrators transition directly to email verification without authenticator enrollment or recovery codes. Backend admin endpoints enforce verification. Losing mailbox access requires private owner recovery; there is no public bypass.
+Existing administrators transition directly to email verification without authenticator enrollment or recovery codes. Backend admin endpoints enforce verification. Losing mailbox access requires private owner recovery; there is no public bypass. To change the administrator recipient, use scripts/change-admin-email.js with an explicit --env-file, --from and --to. It is a dry run unless --apply is supplied. Applying updates the login/recipient email, invalidates old email challenges and sessions, and preserves the password. Resend testing-sender recipient restrictions must also be satisfied for the new address.
 
 ## 6. Verify the Windows AMI before re-enabling
 

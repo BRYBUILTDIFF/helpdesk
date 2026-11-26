@@ -304,7 +304,9 @@ async function generateSimulationDraftFromPrompt(prompt, occurrences = 1, option
     category: inferCategory(prompt),
     difficulty: inferDifficulty(prompt, occurrences)
   };
-  const sources = await require('../services/knowledgeService').retrieveKnowledge(prompt);
+  const sources = options.evidenceToken
+    ? await require('../services/knowledgeEvidence').readEvidenceToken(options.evidenceToken,prompt,options.actorId)
+    : await require('../services/knowledgeService').retrieveKnowledge(prompt);
   const ragError = (status,message) => Object.assign(new Error(message),{status,publicMessage:message});
   if (!sources.length) throw ragError(422,'No relevant approved knowledge passages found. Upload and approve supporting Word or TXT guides, then retry.');
   const client = getOpenAIClient();
@@ -741,7 +743,7 @@ async function generateSimulationModuleDraft(req, res, next) {
         });
       }
       const occurrences = Math.max(1, Number(req.body?.occurrences || 1));
-      const draft = await generateSimulationDraftFromPrompt(sourcePrompt, occurrences, { alignment });
+      const draft = await generateSimulationDraftFromPrompt(sourcePrompt, occurrences, { alignment,evidenceToken:req.body?.evidenceToken,actorId:req.user.id });
       if (!draft) {
         return res.status(400).json({
           message:

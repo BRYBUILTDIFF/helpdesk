@@ -41,8 +41,11 @@ router.use((req, res, next) => ["POST", "PATCH", "PUT", "DELETE"].includes(req.m
 const knowledge = require('../controllers/knowledgeController');
 router.get('/knowledge', knowledge.list);
 router.get('/knowledge/:id', [param('id').isUUID()], validateRequest, knowledge.detail);
+router.get('/knowledge/:id/deletion-preview',[param('id').isUUID()],validateRequest,knowledge.deletionPreview);
+router.delete('/knowledge/:id',[param('id').isUUID(),body('confirmation').equals('DELETE'),body('documentIds').isArray({min:1,max:200}),body('documentIds.*').isUUID()],validateRequest,knowledge.remove);
 router.post('/knowledge', requestLimit('knowledge-upload',{max:10,windowMs:3600000,key:req=>req.user.id}), knowledge.receiveFiles, knowledge.ingest);
-router.patch('/knowledge/:id', [param('id').isUUID(),body('status').isIn(['DRAFT','APPROVED','ARCHIVED'])], validateRequest, knowledge.status);
+router.patch('/knowledge/:id', [param('id').isUUID(),body('status').optional().isIn(['DRAFT','APPROVED','ARCHIVED']),body('title').optional().isString().trim().isLength({min:1,max:180}),body().custom(value=>Boolean(value.status)!==Boolean(value.title)).withMessage('Provide either status or title.')], validateRequest, knowledge.status);
+router.post('/knowledge/:id/versions',[param('id').isUUID()],validateRequest,requestLimit('knowledge-upload',{max:10,windowMs:3600000,key:req=>req.user.id}),knowledge.receiveFiles,knowledge.version);
 router.post('/knowledge/search', [body('query').isString().trim().isLength({min:3,max:1000})], validateRequest, knowledge.search);
 router.post("/simulation-modules/draft", requestLimit("admin-generation", { max: 10, windowMs: 3600000, key: req => req.user.id }));
 router.post('/simulation-modules/draft', ...require('../middleware/aiResources').aiLimits);
