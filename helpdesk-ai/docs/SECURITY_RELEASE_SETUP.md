@@ -111,6 +111,8 @@ Missing configuration and delivery failures fail closed. Codes are never returne
 
 Existing administrators transition directly to email verification without authenticator enrollment or recovery codes. Backend admin endpoints enforce verification. Losing mailbox access requires private owner recovery; there is no public bypass. To change the administrator recipient, use scripts/change-admin-email.js with an explicit --env-file, --from and --to. It is a dry run unless --apply is supplied. Applying updates the login/recipient email, invalidates old email challenges and sessions, and preserves the password. Resend testing-sender recipient restrictions must also be satisfied for the new address.
 
+The admin verification proof is stored in per-tab `sessionStorage` to survive a hard refresh. It is scoped to the account and removed when expired, when starting a new login, or on sign-out. Storage-blocked browsers use memory only. This does not replace server validation: every protected request still checks the proof signature, expiry, token version, and current verification factor, and sensitive writes retain their recent-verification requirement. The proof is not stored in `localStorage`.
+
 ## 6. Verify the Windows AMI before re-enabling
 
 ### Owner maintenance for administrator verification

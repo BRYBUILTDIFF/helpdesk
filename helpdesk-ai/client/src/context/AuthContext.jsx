@@ -79,6 +79,7 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(
     async ({ email, password }) => {
+      clearAdminVerification();
       const response = await publicApi.post("/api/auth/login", { email, password });
       persistAccessToken(response.data.accessToken);
       setUser(response.data.user);
