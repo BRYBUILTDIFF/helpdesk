@@ -135,3 +135,6 @@
 .admin-ui .knowledge-batch-dialog .knowledge-checkbox input { flex:none; width:16px; height:16px; margin:4px 0; }
 .admin-ui #knowledge-batch-delete-confirm { width:100%; box-sizing:border-box; padding:10px; font:inherit; color:var(--color-text-primary); background:var(--color-background-primary); border:1px solid var(--color-border-tertiary); border-radius:6px; }
 @media(max-width:600px) { .admin-ui .knowledge-batch-toolbar > div { width:100%; margin-left:0; } }
+.admin-ui #knowledge-generation-surface { width:100%; box-sizing:border-box; min-height:42px; padding:10px 12px; border:1px solid var(--color-border-secondary); border-radius:6px; background:var(--color-background-secondary); color:var(--color-text-primary); font:13px/1.5 var(--font-sans); }
+.admin-ui .knowledge-runtime-help { margin:12px 0 24px; color:var(--color-text-secondary); font-size:12px; line-height:1.7; }
+.admin-ui .knowledge-runtime-help summary { cursor:pointer; color:var(--color-text-primary); text-decoration:underline; text-underline-offset:3px; }

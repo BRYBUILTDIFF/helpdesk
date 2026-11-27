@@ -2,6 +2,7 @@ import ModalCloseButton from '../../../components/ModalCloseButton';
 import SimulationSources from './SimulationSources';
 import { useCallback, useEffect, useRef, useState } from "react";
 import SimulationWalkthrough from "./SimulationWalkthrough";
+const EMPTY_PROGRESS = Object.freeze([]);
 
 function messageFrom(error, fallback) {
   if (!error?.response && error?.isAxiosError) {
@@ -14,7 +15,7 @@ function plainText(value) {
   return String(value || "").replace(/<[^>]+>/g, "").trim();
 }
 
-export default function WindowsOsSimulation({ api, moduleId, chatSessionId, title, steps = [], completedStepIndexes = [], walkthroughOnOpen = true, testMode = false, onTestComplete, onEnded, onSessionReady, onStepProgress, onLabEnded, initialReviewStatus }) {
+export default function WindowsOsSimulation({ api, moduleId, chatSessionId, title, steps = EMPTY_PROGRESS, completedStepIndexes = EMPTY_PROGRESS, walkthroughOnOpen = true, testMode = false, onTestComplete, onEnded, onSessionReady, onStepProgress, onLabEnded, initialReviewStatus }) {
   const [session, setSession] = useState(null);
   const initialReview = ["ENDED", "COMPLETED"].includes(initialReviewStatus);
   const [status, setStatus] = useState(initialReview ? "REVIEW_" + initialReviewStatus : "IDLE");
@@ -178,18 +179,18 @@ export default function WindowsOsSimulation({ api, moduleId, chatSessionId, titl
     setActiveStep((current) => Math.min(current, Math.max(guidedSteps.length - 1, 0)));
   }, [guidedSteps.length]);
 
+  const incomingProgress = JSON.stringify(Array.from(new Set(Array.isArray(completedStepIndexes)?completedStepIndexes.filter(index=>Number.isInteger(index)&&index>=0&&index<guidedSteps.length):[])).sort((a,b)=>a-b));
   useEffect(() => {
-    setCompletedSteps(new Set(completedStepIndexes));
-  }, [completedStepIndexes]);
+    const next=new Set(JSON.parse(incomingProgress));
+    setCompletedSteps(previous=>previous.size===next.size&&Array.from(next).every(index=>previous.has(index))?previous:next);
+  }, [moduleId,incomingProgress]);
 
   const markCurrentStepComplete = () => {
     if (!currentStep) return;
-    setCompletedSteps((previous) => {
-      const next = new Set(previous);
-      next.add(activeStep);
-      onStepProgress?.(Array.from(next).sort((a, b) => a - b));
-      return next;
-    });
+    const next = new Set(completedSteps);
+    next.add(activeStep);
+    setCompletedSteps(next);
+    onStepProgress?.(Array.from(next).sort((a,b)=>a-b));
     if (activeStep < guidedSteps.length - 1) {
       setActiveStep((step) => step + 1);
     }
@@ -271,7 +272,7 @@ export default function WindowsOsSimulation({ api, moduleId, chatSessionId, titl
               <p className="windows-os-step-description">{currentStepDescription}</p>
             ) : null}
             <button type="button" className="windows-os-mark-step btn-sm" onClick={markCurrentStepComplete} disabled={completedSteps.has(activeStep)}>
-              {completedSteps.has(activeStep) ? "Completed" : activeStep === guidedSteps.length - 1 ? "Complete final step" : "Complete step"}
+              {completedSteps.has(activeStep) ? "Completed" : "Complete step"}
             </button>
           </div> : null}
           <iframe ref={desktopFrameRef} key={`${session.id}-${connectionAttempt}`} className="windows-os-frame" title="Windows Server 2025 Help Desk Lab" src={guacamoleUrl} sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock" allow="clipboard-read; clipboard-write; fullscreen" referrerPolicy="no-referrer" />
@@ -279,7 +280,7 @@ export default function WindowsOsSimulation({ api, moduleId, chatSessionId, titl
       </div> : null}
       {desktopRevealed && guacamoleUrl ? <footer className="windows-os-footer">
         <button type="button" className="windows-os-nav-btn btn-sm" disabled={!currentStep || activeStep === 0} onClick={() => setActiveStep((step) => step - 1)}>← <span>Previous Step</span></button>
-        <div className="windows-os-footer-progress"><span>{completedSteps.size} of {guidedSteps.length} complete</span><div className="windows-os-progress-line">{guidedSteps.map((_, index) => <i key={index} className={completedSteps.has(index) ? "done" : index === activeStep ? "active" : ""} />)}</div></div>
+        <div className="windows-os-footer-progress"><span role="status">{completedSteps.size} of {guidedSteps.length} complete</span><div className="windows-os-progress-line">{guidedSteps.map((_, index) => <i key={index} className={completedSteps.has(index) ? "done" : index === activeStep ? "active" : ""} />)}</div></div>
         <button type="button" className="windows-os-nav-btn is-next btn-sm" disabled={!currentStep || activeStep === guidedSteps.length - 1} onClick={() => setActiveStep((step) => step + 1)}><span>Next Step</span> →</button>
       </footer> : null}
       {status === "FAILED" ? <div className="windows-os-status is-error" role="alert"><div className="windows-os-state-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8m-4-4v4m0-13v3m0 3h.01" /></svg></div><h3>{launchNotice?.dailyLimit ? "Daily Windows lab limit reached" : launchNotice ? "Windows lab unavailable" : "Your Windows lab could not start"}</h3><p>{launchNotice?.message || "Try again to reconnect. If the problem continues, contact your administrator and share the details below."}</p>{error && !launchNotice ? <details className="windows-os-error-details"><summary>Error details</summary><p>{error}</p></details> : null}<div className="windows-os-error-actions">{!launchNotice?.dailyLimit ? <button type="button" className="btn-sm" onClick={retry}>Try Again</button> : null}<button type="button" className="btn-sm" onClick={end}>Return to Modules</button></div></div> : null}

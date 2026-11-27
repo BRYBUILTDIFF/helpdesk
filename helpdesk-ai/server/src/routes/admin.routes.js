@@ -198,6 +198,7 @@ router.post(
   "/simulation-modules/draft",
   [
     body("mode").optional().isIn(["manual", "from_prompt"]).withMessage("mode must be manual or from_prompt"),
+    body('surface').optional().isIn(['windows-terminal','windows-os']).withMessage('Choose Windows lab or Windows Terminal.'),
     body("title").optional().isString().trim().notEmpty().withMessage("title cannot be empty"),
     body("category").optional().isString().trim().notEmpty().withMessage("category cannot be empty"),
     body("sourcePrompt").optional().isString().trim().notEmpty().withMessage("sourcePrompt cannot be empty"),
