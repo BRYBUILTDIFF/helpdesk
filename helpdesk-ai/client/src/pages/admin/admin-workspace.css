@@ -577,6 +577,7 @@
 .admin-ui .sim-preview-environment-label { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin:6px 0 0; font:12px/1.5 var(--font-sans); color:var(--color-text-secondary); }
 .admin-ui .sim-preview-environment-label strong { font-weight:600; color:var(--color-text-primary); }
 .admin-ui .sim-preview-save-hint { flex-basis:100%; color:var(--color-text-secondary); font:12px/1.6 var(--font-sans); }
+.admin-ui .module-verification-note { display:inline-block; margin:4px 0; color:var(--color-text-secondary); font-size:12px; }
 .admin-ui .draft-process-flow button:disabled { opacity:.45; cursor:not-allowed; }
 .admin-ui .draft-publish-workspace { padding:24px; }
 .admin-ui .draft-publish-workspace h3 { margin:0 0 16px; font-size:18px; }

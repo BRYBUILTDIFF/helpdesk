@@ -13,12 +13,13 @@ async function state(draft,db=prisma) {
  let reviewed=!draft.generation?.rag || draft.generation?.workflow?.reviewHash===hash;
  if(reviewed&&draft.generation?.rag){try{await require('./knowledgeService').assertSourcesCurrent(db,draft.generation.rag.sources);}catch(error){if(error.status===409)reviewed=false;else throw error;}}
  const receipt=await db.simulationTestReceipt.findFirst({where:{actorId:draft.ownerId,definitionHash:hash,expiresAt:{gt:new Date()}},orderBy:{createdAt:'desc'}});
- const tested=!!receipt&&receipt.stepsCompleted===definition.steps.length;
- return {definition,hash,reviewed,status:reviewed&&tested?'READY_TO_PUBLISH':'DRAFT',test:tested?{
-  definition,nextStep:receipt.stepsCompleted,mistakes:receipt.mistakes,completed:true,
+ const manual=definition.surface==='windows-os'&&receipt?.events?.[0]?.kind==='admin-guide-approval';
+ const approved=!!receipt&&(manual||receipt.stepsCompleted===definition.steps.length);
+ return {definition,hash,reviewed,status:reviewed&&approved?'READY_TO_PUBLISH':'DRAFT',test:approved?{
+  definition,nextStep:receipt.stepsCompleted,mistakes:receipt.mistakes,completed:!manual,approved:true,
   output:receipt.events[receipt.events.length-1]?.output||'',expiresAt:receipt.expiresAt,
   testReceiptId:receipt.id,testToken:runtime.signTest(definition,draft.ownerId,receipt.id),
-  verification:definition.surface==='windows-os'?'admin-confirmed':'automatic'
+  verification:manual?'manual-approval':definition.surface==='windows-os'?'admin-confirmed':'automatic'
  }:null};
 }
 async function review(id,ownerId,version,confirmed) {
@@ -60,10 +61,19 @@ async function publish(id,ownerId,version) {
  const draft=await owned(id,ownerId),workflow=await state(draft);
  if(draft.version!==version)throw fail('The draft changed. Save the latest version before publishing.');
  if(!workflow.reviewed)throw fail('Review the evidence for this version before publishing.');
- if(!workflow.test)throw fail('Complete the test for this version before publishing.');
+ if(!workflow.test)throw fail(workflow.definition.surface==='windows-os'?'Approve this Windows guide or complete its lab test before publishing.':'Complete the test for this version before publishing.');
  const payload={workflowPublish:true,title:draft.title,category:draft.category,difficulty:draft.difficulty,sourcePrompt:draft.sourcePrompt,simulation:workflow.definition,enabled:true,draftId:id,draftVersion:version,baseRevision:draft.generation?.baseRevision,sourceReviewConfirmed:workflow.reviewed,testToken:workflow.test.testToken,testedById:ownerId};
  const store=require('../store/simulationModuleStore');
  const module=draft.moduleId?await store.updateModule(draft.moduleId,payload):await store.createModule(payload);
  return {module};
 }
-module.exports={owned,state,review,prepareLab,confirmLab,publish};
+async function approveGuide(id,ownerId,version,confirmed) {
+ return prisma.$transaction(async tx=>{
+  const draft=await owned(id,ownerId,tx),workflow=await state(draft,tx);
+  if(workflow.definition.surface!=='windows-os')throw fail('Terminal simulations require the interactive command test.');
+  if(draft.version!==version||!workflow.reviewed||confirmed!==true)throw fail('Review the current evidence and confirm approval without lab testing.');
+  const receipt=await tx.simulationTestReceipt.create({data:{actorId:ownerId,definitionHash:workflow.hash,definition:workflow.definition,events:[{kind:'admin-guide-approval',at:new Date().toISOString(),output:'Administrator approved this guide without live lab testing.'}],mistakes:0,stepsCompleted:0,expiresAt:new Date(Date.now()+3600000)}});
+  return {approvalId:receipt.id,verification:'manual-approval'};
+ });
+}
+module.exports={owned,state,review,prepareLab,confirmLab,approveGuide,publish};

@@ -1268,6 +1268,11 @@ function AdminPageContent() {
     try{const draft=await draftAutosave.flush();await api.post('/api/admin/simulation-drafts/'+draft.id+'/publish',{version:draft.version});await closeModulePreview({skipFlush:true});await loadModules();}
     catch(error){setModuleDraftError(safeError(error));throw error;}finally{setPendingKey('');}
   };
+  const approveDraftGuide=async()=>{
+    setPendingKey('draft-approve');setModuleDraftError('');
+    try{const draft=await draftAutosave.flush();await api.post('/api/admin/simulation-drafts/'+draft.id+'/lab-approval',{version:draft.version,confirmed:true});const {data}=await api.get('/api/admin/simulation-drafts/'+draft.id);setModuleDraftMeta(previous=>({...previous,initialTest:data.draft.test}));}
+    catch(error){setModuleDraftError(safeError(error));}finally{setPendingKey('');}
+  };
   const startDraftLab=async()=>{
     setPendingKey('draft-lab');setModuleDraftError('');
     try{const draft=await draftAutosave.flush();const {data}=await api.post('/api/admin/simulation-drafts/'+draft.id+'/lab',{version:draft.version});setAdminWindowsOsTest({id:data.moduleId,title:draft.title,steps:data.definition.steps,draftId:draft.id,draftVersion:draft.version});}
@@ -2026,6 +2031,7 @@ function AdminPageContent() {
                                 <span className={`badge ${module.enabled ? "badge-active" : "badge-inactive"}`}>
                                   {module.enabled ? "Published" : "Draft"}
                                 </span>
+                                {module.verification==='manual-approval'?<span className="module-verification-note">Not lab-tested</span>:null}
                               </div>
                             </div>
 
@@ -2109,7 +2115,7 @@ function AdminPageContent() {
             {moduleEditorOpen && ["windows-terminal"].includes(modulePreviewSurface) ? (
               <TerminalModuleTester key={previewVerifiedModuleId || moduleDraftMeta?.sourcePrompt || modulePreview.title} definition={{...modulePreview,surface:modulePreviewSurface,terminalType:modulePreviewSurface}} existing={Boolean(previewVerifiedModuleId)} evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} workflowBusy={pendingKey==='draft-review'} reviewRequired={!!moduleDraftMeta?.rag} reviewed={sourceReviewConfirmed} reviewControl={moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={reviewModuleDraft} disabled={pendingKey === "draft-review"}/>:null} initialTest={moduleDraftMeta?.initialTest} sources={moduleDraftMeta?.rag?.sources} onChange={next=>{setModulePreview(next);setSourceReviewConfirmed(false);setModuleDraftMeta(previous=>({...previous,initialTest:null}));draftAutosave.change(next);}} saveStatus={draftAutosave.status} onSave={saveModuleDraft} />            ) : isDraftPreview ? (
               <>
-                <DesktopModuleEditor evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} definition={modulePreview} sources={moduleDraftMeta?.rag?.sources} busy={!!adminWindowsOsTest||['module-save-draft','draft-review','draft-lab'].includes(pendingKey)} reviewed={!moduleDraftMeta?.rag||sourceReviewConfirmed} reviewControl={moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={reviewModuleDraft} disabled={pendingKey==='draft-review'}/>:null} test={moduleDraftMeta?.initialTest} onStartTest={startDraftLab} onPublish={()=>saveModuleDraft().catch(()=>{})} existing={!!previewVerifiedModuleId} saveStatus={draftAutosave.status} onChange={next=>{setModulePreview(next);setSourceReviewConfirmed(false);setModuleDraftMeta(previous=>({...previous,initialTest:null}));draftAutosave.change(next);setModuleDraftError('');}} />
+                <DesktopModuleEditor evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} definition={modulePreview} sources={moduleDraftMeta?.rag?.sources} busy={!!adminWindowsOsTest||['module-save-draft','draft-review','draft-lab','draft-approve'].includes(pendingKey)} reviewed={!moduleDraftMeta?.rag||sourceReviewConfirmed} reviewControl={moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={reviewModuleDraft} disabled={pendingKey==='draft-review'}/>:null} test={moduleDraftMeta?.initialTest} onStartTest={startDraftLab} onApproveGuide={approveDraftGuide} onPublish={()=>saveModuleDraft().catch(()=>{})} existing={!!previewVerifiedModuleId} saveStatus={draftAutosave.status} onChange={next=>{setModulePreview(next);setSourceReviewConfirmed(false);setModuleDraftMeta(previous=>({...previous,initialTest:null}));draftAutosave.change(next);setModuleDraftError('');}} />
               </>
             ) : (
               <>

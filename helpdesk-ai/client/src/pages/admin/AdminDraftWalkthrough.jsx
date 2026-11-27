@@ -19,7 +19,7 @@ export default function AdminDraftWalkthrough({ terminal = false, notice = '' })
     ['.draft-test-workspace', 'Test the module', 'Review the current test step instruction and expected output. Copy its command with the copy icon, then paste it into the terminal. Complete every command or checkpoint in order. Editing or reordering steps resets verification.'],
     ['.draft-save-module', 'Publish the tested draft', 'Draft edits save automatically. After all steps pass verification, continue to the Publish stage. Use Publish to make a new module available to students, or Publish changes to replace a published version.']
   ] : [
-    ['.draft-test-workspace', 'Test before publishing', 'Review the evidence, open the Windows test lab, follow every step, and finish the test. Then continue to Publish.']
+    ['.draft-test-workspace', 'Approve the Windows guide', 'Review the evidence, then approve without a lab test or optionally test in a live workspace. Continue to Publish afterward.']
   ])];
   const close = () => { setOpen(false); const target = previousFocus.current; if (target && target !== document.body && target.isConnected) target.focus(); else document.querySelector('.draft-content-editor .sim-runtime-step')?.focus(); };
 

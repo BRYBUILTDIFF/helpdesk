@@ -73,6 +73,7 @@ function mapDbModule(module) {
     category: module.category,
     difficulty: module.difficulty,
     enabled: Boolean(module.enabled),
+    verification: module.provenance?.verification?.kind || null,
     completions: Number(module.completions || 0),
     passRate: null, // No failure denominator yet; do not present a fabricated pass rate.
     scoring: "command-sequence or self-reported; not proof of real OS actions",
@@ -126,7 +127,9 @@ async function checkedReceipt(tx, payload, simulation, required) {
   const signed = JSON.parse(Buffer.from(payload.testToken.split('.')[0], 'base64url').toString());
   const receipt = signed.receiptId && await tx.simulationTestReceipt.findUnique({where:{id:signed.receiptId}});
   if(!receipt || receipt.actorId!==payload.testedById || receipt.definitionHash!==r.definitionHash(simulation) || receipt.expiresAt<=new Date()) throw conflict('A stored test approval is required. Test the module again.');
-  return receipt.id;
+  const manual=simulation.surface==='windows-os'&&receipt.events?.[0]?.kind==='admin-guide-approval';
+  if(!manual&&receipt.stepsCompleted!==simulation.steps.length)throw conflict('Complete every step of the interactive test before publishing.');
+  return {id:receipt.id,verification:{kind:manual?'manual-approval':simulation.surface==='windows-os'?'admin-confirmed':'automatic'}};
 }
 async function finishDraft(tx, payload, moduleId, simulation, baseRevision) {
   if(!payload.draftId) return;
@@ -151,8 +154,9 @@ async function createModule(payload = {}) {
   for(let attempt=1;attempt<=100;attempt++) {
     try {
       const created=await prisma.$transaction(async tx=>{
-        const testReceiptId=await checkedReceipt(tx,payload,normalized.simulation,normalized.enabled);
-        const provenance=await require('../services/ragPublication').publicationProvenance(tx,payload,normalized.simulation);
+        const approval=await checkedReceipt(tx,payload,normalized.simulation,normalized.enabled),testReceiptId=approval?.id;
+        const sourceProvenance=await require('../services/ragPublication').publicationProvenance(tx,payload,normalized.simulation);
+        const provenance=approval?{...sourceProvenance,verification:approval.verification}:sourceProvenance;
         const module=await tx.simulationModule.create({data:{...normalized,...(provenance?{provenance:jsonValue(provenance)}:{}),id:attempt===1?base:base+'-'+attempt,simulation:normalized.simulation?jsonValue(normalized.simulation):undefined,createdById:payload.testedById||null,updatedById:payload.testedById||null,publishedAt:normalized.enabled?new Date():null}});
         await finishDraft(tx,payload,module.id,normalized.simulation);
         await saveRevision(tx,module,payload.testedById,testReceiptId);
@@ -183,9 +187,10 @@ async function updateModule(id, patch = {}) {
     if(current.provenance?.authoringTest)throw conflict('Private authoring test copies cannot be published or edited as library modules.');
     const requiresTest=(data.enabled??current.enabled) && (data.enabled===true || Boolean(data.simulation));
     if(requiresTest&&terminal)require('../services/terminalRuntime').assertDefinition(target);
-    const testReceiptId=await checkedReceipt(tx,patch,target,requiresTest);
+    const approval=await checkedReceipt(tx,patch,target,requiresTest),testReceiptId=approval?.id;
     if(data.simulation)data.simulation=jsonValue(data.simulation);
-    const provenance=await require('../services/ragPublication').publicationProvenance(tx,patch,target,current);
+    const sourceProvenance=await require('../services/ragPublication').publicationProvenance(tx,patch,target,current);
+    const provenance=approval?{...sourceProvenance,verification:approval.verification}:sourceProvenance;
     const module=await tx.simulationModule.update({where:{id:current.id},data:{...data,...(provenance?{provenance:jsonValue(provenance)}:{}),revision:{increment:1},updatedById:patch.testedById||null,...(data.enabled===true&&!current.enabled?{publishedAt:new Date()}:{})}});
     await finishDraft(tx,patch,module.id,target,current.revision);
     await saveRevision(tx,module,patch.testedById,testReceiptId);
