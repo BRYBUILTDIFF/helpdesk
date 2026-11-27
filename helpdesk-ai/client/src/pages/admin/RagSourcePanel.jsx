@@ -8,8 +8,8 @@ export function SourceCitationPicker({sources,selected=[],supportType,onChange,d
  {aiAdded?<p>Check this step independently. It has no document citation and must still pass simulation validation.</p>:sources.map(source=><label key={source.sourceId} className="knowledge-checkbox"><input type="checkbox" checked={selected.includes(source.sourceId)} disabled={disabled} onChange={e=>onChange(e.target.checked?[...selected,source.sourceId]:selected.filter(id=>id!==source.sourceId),'source-backed')}/>{source.sourceId} / {source.filename} / section {source.section}</label>)}
  </fieldset>;
 }
-export function SourceReviewConfirmation({reviewed,onReview}) {
- return <label className="knowledge-checkbox draft-final-review"><input type="checkbox" checked={reviewed} onChange={e=>onReview(e.target.checked)}/>I reviewed the evidence and checked the AI-added steps.</label>;
+export function SourceReviewConfirmation({reviewed,onReview,disabled}) {
+ return <label className="knowledge-checkbox draft-final-review"><input type="checkbox" checked={reviewed} disabled={disabled} onChange={e=>onReview(e.target.checked)}/>I reviewed the evidence and checked the AI-added steps.</label>;
 }
 export default function RagSourcePanel({rag}) {
  if(!rag?.sources?.length)return null;

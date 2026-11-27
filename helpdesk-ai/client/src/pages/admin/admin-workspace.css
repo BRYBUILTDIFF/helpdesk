@@ -569,6 +569,22 @@
 .admin-ui .draft-evidence-workspace .knowledge-citation-picker { width:100%; box-sizing:border-box; margin:20px 0; }
 .admin-ui .draft-final-review { margin-top:8px; font-size:12px; align-items:center; }
 .admin-ui .draft-final-review input { flex:0 0 auto; }
+.admin-ui .sim-preview-draft-footer { flex-wrap:wrap; }
+.admin-ui .sim-preview-draft-footer .sim-preview-footer-center { position:static; left:auto; transform:none; pointer-events:auto; flex:1 1 380px; min-width:0; justify-content:flex-start; flex-wrap:wrap; gap:8px 12px; }
+.admin-ui .sim-preview-draft-footer .draft-final-review { margin:0; white-space:normal; }
+.admin-ui .sim-preview-draft-footer .sim-preview-btn-row { margin-left:auto; flex-wrap:wrap; }
+.admin-ui .sim-preview-title-block { min-width:0; }
+.admin-ui .sim-preview-environment-label { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin:6px 0 0; font:12px/1.5 var(--font-sans); color:var(--color-text-secondary); }
+.admin-ui .sim-preview-environment-label strong { font-weight:600; color:var(--color-text-primary); }
+.admin-ui .sim-preview-save-hint { flex-basis:100%; color:var(--color-text-secondary); font:12px/1.6 var(--font-sans); }
+.admin-ui .draft-process-flow button:disabled { opacity:.45; cursor:not-allowed; }
+.admin-ui .draft-publish-workspace { padding:24px; }
+.admin-ui .draft-publish-workspace h3 { margin:0 0 16px; font-size:18px; }
+.admin-ui .draft-publish-workspace p,.admin-ui .draft-test-workspace > p { font-size:13px; line-height:1.7; max-width:70ch; color:var(--color-text-secondary); }
+.admin-ui .draft-editor-footer > div:first-child { min-width:0; flex:1; }
+.admin-ui .draft-editor-footer [role=status] { font-size:12px; color:var(--color-text-primary); }
+.admin-ui .draft-editor-footer p { margin:6px 0 0; font-size:12px; line-height:1.6; color:var(--color-text-secondary); }
+.admin-ui .draft-editor-footer .sim-preview-btn-row { flex-wrap:wrap; justify-content:flex-end; }
 .admin-ui .draft-content-editor .draft-test-workspace { margin-top:0; border-top:0; }
 .admin-ui .draft-evidence-workspace .knowledge-checkbox { display:flex; align-items:flex-start; gap:10px; margin:12px 0; overflow-wrap:anywhere; }
 .admin-ui .draft-evidence-workspace .knowledge-checkbox input { width:16px; height:16px; margin:2px 0 0; flex:0 0 auto; }
@@ -583,13 +599,15 @@
 /* Connected workflow replaces the numbered tab cards. */
 .admin-ui .draft-editor-stages.draft-process-flow { display:block; padding:14px 0; margin:0 0 18px; background:transparent; border:0; }
 .admin-ui .draft-process-flow ol { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:0; padding:0; list-style:none; }
-.admin-ui .draft-process-flow li { display:flex; align-items:center; gap:10px; }
+.admin-ui .draft-process-flow li { display:flex; align-items:center; gap:10px; padding:0; border:0; }
 .admin-ui .draft-process-flow li > svg { color:var(--color-text-secondary); opacity:.6; flex:none; }
 .admin-ui .draft-process-flow button { padding:8px 0; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; color:var(--color-text-secondary); font-size:13px; font-weight:400; }
 .admin-ui .draft-process-flow button[aria-current=step] { border-bottom-color:#286044; color:var(--color-text-primary); font-weight:600; }
 .admin-ui .draft-process-flow button:hover { color:var(--color-text-primary); }
 .admin-ui .draft-process-flow button:focus-visible { outline:2px solid #286044; outline-offset:4px; }
 @media(max-width:600px) {
+ .admin-ui .draft-editor-footer > div:first-child { flex-basis:100%; }
+ .admin-ui .draft-editor-footer .sim-preview-btn-row { width:100%; justify-content:space-between; }
  .admin-ui .draft-process-flow ol, .admin-ui .draft-process-flow li { gap:6px; }
  .admin-ui .draft-process-flow li > svg { width:18px; }
  .admin-ui .draft-process-flow button { font-size:12px; }

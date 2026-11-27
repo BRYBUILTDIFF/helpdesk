@@ -35,6 +35,13 @@ async function createSimulationSession(req, res, next) {
     const moduleId = String(req.body?.moduleId || "").trim();
     const chatSessionId = req.body?.chatSessionId ? String(req.body.chatSessionId) : null;
     const module = await getModuleById(moduleId);
+    if(moduleId.startsWith('authoring-lab-')){
+      const copy=await prisma.simulationModule.findUnique({where:{id:moduleId}});
+      if(req.user.role!=='ADMIN'||copy?.provenance?.authoringTest?.ownerId!==req.user.id)return res.status(404).json({message:'Simulation module not found.'});
+      const draft=await prisma.simulationDraft.findFirst({where:{id:copy.provenance.authoringTest.draftId,ownerId:req.user.id,state:'DRAFT'}});
+      const definition=draft&&require('../store/simulationModuleStore').normalizeSimulation(draft.simulation);
+      if(!draft||require('../services/terminalRuntime').definitionHash(definition)!==copy.provenance.authoringTest.definitionHash)return res.status(409).json({message:'The draft changed. Open a test workspace for the current version.'});
+    }
     if (!module || (!module.enabled && req.user.role !== "ADMIN")) return res.status(404).json({ message: "Simulation module not found." });
     if (module?.simulation?.surface !== "windows-os") {
       return res.status(400).json({ message: "This module does not use the Windows OS simulation surface." });

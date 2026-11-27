@@ -108,7 +108,7 @@ function buildPayload(payload = {}) {
 
 async function listModules(options = {}) {
   const modules = await prisma.simulationModule.findMany({ where: options.onlyEnabled ? { enabled: true } : undefined, orderBy: { createdAt: "desc" } });
-  return modules.filter(module=>supportsWindowsSimulation(module.simulation)).map(module => ({...mapDbModule(module),...(!options.onlyEnabled && module.provenance ? {provenance:module.provenance} : {})}));
+  return modules.filter(module=>!module.provenance?.authoringTest&&supportsWindowsSimulation(module.simulation)).map(module => ({...mapDbModule(module),...(!options.onlyEnabled && module.provenance ? {provenance:module.provenance} : {})}));
 }
 async function getModuleById(id) {
   const module = await prisma.simulationModule.findUnique({ where: { id: String(id || "") } });
@@ -134,6 +134,7 @@ async function finishDraft(tx, payload, moduleId, simulation, baseRevision) {
   if(!draft || draft.ownerId!==payload.testedById || draft.state!=='DRAFT' || draft.version!==payload.draftVersion || (draft.moduleId && draft.moduleId!==moduleId)) throw conflict('The saved draft changed. Reopen it before saving the module.');
   if(draft.moduleId && draft.generation?.baseRevision!==baseRevision) throw conflict('The original module changed since this draft was created. Reopen the current module to make a new draft.');
   const hash = require('../services/terminalRuntime').definitionHash;
+  if(payload.workflowPublish&&draft.generation?.rag&&draft.generation?.workflow?.reviewHash!==hash(simulation))throw conflict('The evidence review changed. Review the current draft before publishing.');
   if(hash(normalizeSimulation(draft.simulation))!==hash(simulation)) throw conflict('Wait for draft changes to finish saving before saving the module.');
   const changed=await tx.simulationDraft.updateMany({where:{id:draft.id,ownerId:payload.testedById,version:draft.version,state:'DRAFT'},data:{state:'SAVED',moduleId,version:{increment:1}}});
   if(!changed.count) throw conflict('The draft changed during saving. Reopen it and try again.');
@@ -150,7 +151,7 @@ async function createModule(payload = {}) {
   for(let attempt=1;attempt<=100;attempt++) {
     try {
       const created=await prisma.$transaction(async tx=>{
-        const testReceiptId=await checkedReceipt(tx,payload,normalized.simulation,terminal && normalized.enabled);
+        const testReceiptId=await checkedReceipt(tx,payload,normalized.simulation,normalized.enabled);
         const provenance=await require('../services/ragPublication').publicationProvenance(tx,payload,normalized.simulation);
         const module=await tx.simulationModule.create({data:{...normalized,...(provenance?{provenance:jsonValue(provenance)}:{}),id:attempt===1?base:base+'-'+attempt,simulation:normalized.simulation?jsonValue(normalized.simulation):undefined,createdById:payload.testedById||null,updatedById:payload.testedById||null,publishedAt:normalized.enabled?new Date():null}});
         await finishDraft(tx,payload,module.id,normalized.simulation);
@@ -179,8 +180,9 @@ async function updateModule(id, patch = {}) {
     if(patch.baseRevision!==undefined && patch.baseRevision!==current.revision) throw conflict('This module has a newer revision. Reopen it before publishing changes.');
     const target=data.simulation||normalizeSimulation(current.simulation,current.title);
     const terminal=['windows-terminal'].includes(target?.surface);
-    const requiresTest=terminal && (data.enabled??current.enabled) && (data.enabled===true || Boolean(data.simulation));
-    if(requiresTest)require('../services/terminalRuntime').assertDefinition(target);
+    if(current.provenance?.authoringTest)throw conflict('Private authoring test copies cannot be published or edited as library modules.');
+    const requiresTest=(data.enabled??current.enabled) && (data.enabled===true || Boolean(data.simulation));
+    if(requiresTest&&terminal)require('../services/terminalRuntime').assertDefinition(target);
     const testReceiptId=await checkedReceipt(tx,patch,target,requiresTest);
     if(data.simulation)data.simulation=jsonValue(data.simulation);
     const provenance=await require('../services/ragPublication').publicationProvenance(tx,patch,target,current);

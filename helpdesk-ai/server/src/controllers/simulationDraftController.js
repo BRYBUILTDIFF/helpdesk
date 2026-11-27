@@ -20,23 +20,24 @@ async function createStoredDraft(ownerId, input) {
 }
 async function listDrafts(req, res, next) { try {
   const drafts=await prisma.simulationDraft.findMany({ where: { ownerId: req.user.id, state: 'DRAFT' }, orderBy: { updatedAt: 'desc' }, take: 100 });
-  return res.json({drafts:drafts.filter(draft=>require('../utils/simulationSurfaces').supportsWindowsSimulation(draft.simulation))});
+  const visible=drafts.filter(draft=>require('../utils/simulationSurfaces').supportsWindowsSimulation(draft.simulation));
+  return res.json({drafts:await Promise.all(visible.map(async draft=>{const workflow=await require('../services/authoringWorkflow').state(draft);return {...draft,workflow:{reviewed:workflow.reviewed,status:workflow.status,test:workflow.test}};}))});
 } catch (e) { next(e); } }
 async function getDraft(req,res,next){try{
   const draft=await prisma.simulationDraft.findFirst({where:{id:req.params.id,ownerId:req.user.id,state:'DRAFT'}});
   if(!draft)throw fail(404,'Draft not found.');
   if(!require('../utils/simulationSurfaces').supportsWindowsSimulation(draft.simulation))throw fail(410,'This historical platform is no longer supported. Create a Windows simulation instead.');
-  const runtime=require('../services/terminalRuntime');
-  const definition=normalizeSimulation(draft.simulation);
-  const receipt=await prisma.simulationTestReceipt.findFirst({where:{actorId:req.user.id,definitionHash:runtime.definitionHash(definition),expiresAt:{gt:new Date()}},orderBy:{createdAt:'desc'}});
-  return res.json({draft:{...draft,test:receipt?{definition,nextStep:receipt.stepsCompleted,mistakes:receipt.mistakes,completed:true,output:receipt.events[receipt.events.length-1]?.output||'',testReceiptId:receipt.id,testToken:runtime.signTest(definition,req.user.id,receipt.id)}:null}});
+  const workflow=await require('../services/authoringWorkflow').state(draft);
+  return res.json({draft:{...draft,test:workflow.test,workflow:{reviewed:workflow.reviewed,status:workflow.status,test:workflow.test}}});
 }catch(e){next(e);}}
 async function createDraft(req, res, next) { try {
   const module = req.body.moduleId ? await getModuleById(req.body.moduleId) : null;
+  if(module?.id.startsWith('authoring-lab-'))throw fail(404,'Module not found.');
   if (req.body.moduleId && !module) throw fail(404, 'Module not found.');
   const stored = module ? await prisma.simulationModule.findUnique({where:{id:module.id},select:{provenance:true}}) : null;
-  const input = module ? { ...module, moduleId: module.id, generation: { baseRevision: module.revision, ...(stored?.provenance?.rag ? {rag:stored.provenance.rag} : {}) } } : {...req.body,generation:undefined};
-  return res.status(201).json({ draft: await createStoredDraft(req.user.id, input) });
+  const input = module ? { ...module, moduleId: module.id, generation: { baseRevision: module.revision, ...(stored?.provenance?.rag ? {rag:stored.provenance.rag,workflow:{reviewHash:stored.provenance.definitionHash}} : {}) } } : {...req.body,generation:undefined};
+  const draft=await createStoredDraft(req.user.id,input),workflow=await require('../services/authoringWorkflow').state(draft);
+  return res.status(201).json({draft:{...draft,test:workflow.test,workflow:{reviewed:workflow.reviewed,status:workflow.status,test:workflow.test}}});
 } catch (e) { next(e); } }
 async function updateDraft(req, res, next) { try {
   const version = req.body.version;

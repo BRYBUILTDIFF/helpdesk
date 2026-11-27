@@ -14,7 +14,7 @@ function plainText(value) {
   return String(value || "").replace(/<[^>]+>/g, "").trim();
 }
 
-export default function WindowsOsSimulation({ api, moduleId, chatSessionId, title, steps = [], completedStepIndexes = [], walkthroughOnOpen = true, testMode = false, onEnded, onSessionReady, onStepProgress, onLabEnded, initialReviewStatus }) {
+export default function WindowsOsSimulation({ api, moduleId, chatSessionId, title, steps = [], completedStepIndexes = [], walkthroughOnOpen = true, testMode = false, onTestComplete, onEnded, onSessionReady, onStepProgress, onLabEnded, initialReviewStatus }) {
   const [session, setSession] = useState(null);
   const initialReview = ["ENDED", "COMPLETED"].includes(initialReviewStatus);
   const [status, setStatus] = useState(initialReview ? "REVIEW_" + initialReviewStatus : "IDLE");
@@ -220,6 +220,10 @@ export default function WindowsOsSimulation({ api, moduleId, chatSessionId, titl
     setCompleting(true);
     setError("");
     try {
+      if(testMode&&onTestComplete){
+        if(!guacamoleUrl||!desktopRevealed||!guidedSteps.every((_,index)=>completedSteps.has(index)))throw new Error('Follow and mark every lab step complete before finishing the test.');
+        await onTestComplete({sessionId:session.id,completedSteps:Array.from(completedSteps)});
+      }
       if (!testMode) await api.post(`/api/simulations/modules/${moduleId}/complete`, {
         attemptKey: `windows-os:${session.id}`,
         surface: "windows-os",
@@ -227,19 +231,19 @@ export default function WindowsOsSimulation({ api, moduleId, chatSessionId, titl
       });
       await end("COMPLETED");
     } catch (err) {
-      setError(messageFrom(err, "Unable to record this completed simulation."));
+      setError(messageFrom(err, err.message || "Unable to record this completed simulation."));
     } finally {
       setCompleting(false);
     }
-  }, [api, completing, end, guidedSteps.length, activeStep, moduleId, session?.id, testMode]);
+  }, [api, completing, end, guidedSteps, activeStep, moduleId, session?.id, testMode, onTestComplete, completedSteps, guacamoleUrl, desktopRevealed]);
   const retry = () => { startedRef.current = true; start(); };
   const reviewing = status === "REVIEW_COMPLETED" || status === "REVIEW_ENDED";
   const remainingMinutes = desktopRevealed && session?.expiresAt ? Math.max(0, Math.ceil((new Date(session.expiresAt).getTime() - clockNow) / 60000)) : null;
 
   return <div className="windows-os-overlay" aria-label="Windows OS simulation">
     <section className="windows-os-shell">
-      <header className="windows-os-header"><div><h2>{title}</h2><span className="windows-os-lab-label">Windows lab</span></div><div className="windows-os-controls">{reviewing?<ModalCloseButton aria-label="Close lab review" onClick={()=>onEnded?.()}/>:<>{remainingMinutes !== null ? <span>{remainingMinutes} min remaining</span> : null}<button type="button" className="windows-os-end-btn btn-sm" disabled={status === "TERMINATING" || completing} onClick={end}>End Simulation</button><button type="button" className="windows-os-complete-btn btn-sm" onClick={complete} disabled={!session?.id || completing || status === "TERMINATING"} title={!session?.id ? "A live workspace is required to record completion" : "Complete simulation"}>✓ <span>{completing ? "Completing..." : testMode ? "Finish test" : "Complete Simulation"}</span></button></>}</div></header>
-      {reviewing?<div className="windows-os-workspace windows-os-review-workspace"><aside className="windows-os-guide"><h3>Simulation steps</h3>{guidedSteps.map((step,index)=><button type="button" key={index} className={'windows-os-step'+(activeStep===index?' is-active':'')} onClick={()=>setActiveStep(index)}><span>{index+1}</span><span>{step.title}</span></button>)}<SimulationSources moduleId={moduleId} stepIndex={activeStep}/></aside><section className="windows-os-review-content"><p className="windows-os-review-status" role="status">{status==='REVIEW_COMPLETED'?'Simulation completed':'Simulation ended'}</p><h3>Windows workspace disconnected</h3><p>The instance termination was requested. It may take a short time to finish shutting down. You can still review the simulation steps and sources here.</p>{currentStep?<article><h4>Step {activeStep+1}: {currentStep.title}</h4><p>{currentStepAction}</p>{currentStepDescription!==currentStepAction?<p>{currentStepDescription}</p>:null}</article>:null}<button type="button" className="btn-sm" onClick={()=>onEnded?.()}>Return to modules</button></section></div>:null}
+      <header className="windows-os-header"><div><h2>{title}</h2><span className="windows-os-lab-label">Windows lab</span></div><div className="windows-os-controls">{reviewing?<ModalCloseButton aria-label="Close lab review" onClick={()=>onEnded?.()}/>:<>{remainingMinutes !== null ? <span>{remainingMinutes} min remaining</span> : null}<button type="button" className="windows-os-end-btn btn-sm" disabled={status === "TERMINATING" || completing} onClick={end}>End Simulation</button><button type="button" className="windows-os-complete-btn btn-sm" onClick={complete} disabled={!session?.id || completing || status === "TERMINATING" || (testMode&&onTestComplete&&(!desktopRevealed||!guacamoleUrl||completedSteps.size!==guidedSteps.length))} title={!session?.id ? "A live workspace is required to record completion" : "Complete simulation"}>✓ <span>{completing ? "Completing..." : testMode ? "Finish test" : "Complete Simulation"}</span></button></>}</div></header>
+      {reviewing?<div className="windows-os-workspace windows-os-review-workspace"><aside className="windows-os-guide"><h3>Simulation steps</h3>{guidedSteps.map((step,index)=><button type="button" key={index} className={'windows-os-step'+(activeStep===index?' is-active':'')} onClick={()=>setActiveStep(index)}><span>{index+1}</span><span>{step.title}</span></button>)}{!testMode?<SimulationSources moduleId={moduleId} stepIndex={activeStep}/>:null}</aside><section className="windows-os-review-content"><p className="windows-os-review-status" role="status">{status==='REVIEW_COMPLETED'?'Simulation completed':'Simulation ended'}</p><h3>Windows workspace disconnected</h3><p>The instance termination was requested. It may take a short time to finish shutting down. You can still review the simulation steps and sources here.</p>{currentStep?<article><h4>Step {activeStep+1}: {currentStep.title}</h4><p>{currentStepAction}</p>{currentStepDescription!==currentStepAction?<p>{currentStepDescription}</p>:null}</article>:null}<button type="button" className="btn-sm" onClick={()=>onEnded?.()}>Return to modules</button></section></div>:null}
       {["IDLE", "PROVISIONING", "READY", "TERMINATING"].includes(status) ? <div className="windows-os-status" role="status"><div className="windows-os-spinner" aria-hidden="true" /><h3>{status === "TERMINATING" ? "Ending your Windows Server 2025 workspace..." : "Preparing your Windows Server 2025 workspace..."}</h3><p>We are getting your lab ready. This may take a few minutes. Please keep this page open.</p></div> : null}
       {["CONNECTING", "ACTIVE"].includes(status) && guacamoleUrl ? <div className="windows-os-workspace" style={{ position: "relative" }}>
         {!desktopRevealed ? <div className="windows-os-status" role="status" style={{ position: "absolute", inset: 0, zIndex: 10, background: "var(--bg2, #ffffff)" }}>

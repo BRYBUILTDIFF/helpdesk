@@ -1233,7 +1233,7 @@ function AdminPageContent() {
       catch(error){window.alert(safeError(error));return;}
     }
     draftAutosave.initialize(record);
-    setSourceReviewConfirmed(false);
+    setSourceReviewConfirmed(Boolean(record?.workflow?.reviewed));
     if(record){preview=record.simulation;options={...options,moduleId:record.moduleId,edit:true,draftMeta:{...options.draftMeta,draftId:record.id,title:record.title,category:record.category,sourcePrompt:record.sourcePrompt || undefined,baseRevision:record.generation?.baseRevision,rag:record.generation?.rag,initialTest:record.test}};}
     setPreviewVerifiedModuleId(options.moduleId || null);
     setModuleEditorOpen(Boolean(options.edit || options.draftMeta));
@@ -1258,41 +1258,20 @@ function AdminPageContent() {
     await loadModules();
   };
 
-  const saveModuleDraft = async () => {
-    if (!moduleDraftMeta || !modulePreview) {
-      return;
-    }
-    const steps = Array.isArray(modulePreview.steps) ? modulePreview.steps : [];
-    if (steps.length < 3) {
-      setModuleDraftError("Simulation draft must include at least 3 steps before saving.");
-      return;
-    }
-    setPendingKey("module-save-draft");
-    setModuleDraftError("");
-    try {
-      const savedDraft=await draftAutosave.flush();
-      const payload={
-        mode: "manual",
-        draftId:savedDraft?.id,draftVersion:savedDraft?.version,baseRevision:moduleDraftMeta.baseRevision,sourceReviewConfirmed,
-        title: moduleDraftMeta.title,
-        category: moduleDraftMeta.category,
-        sourcePrompt: moduleDraftMeta.sourcePrompt,
-        simulation: {
-          ...modulePreview,
-          surface: modulePreviewSurface,
-          terminalType: modulePreviewSurface === "windows-terminal" ? modulePreviewSurface : null
-        },
-        enabled: false
-      };
-      if(previewVerifiedModuleId)await api.patch('/api/admin/simulation-modules/'+previewVerifiedModuleId,payload);
-      else await api.post('/api/admin/simulation-modules',payload);
-      await closeModulePreview({skipFlush:true});
-      await Promise.all([loadModules(), loadPromptInsights()]);
-    } catch (err) {
-      setModuleDraftError(safeError(err));
-    } finally {
-      setPendingKey("");
-    }
+  const reviewModuleDraft=async confirmed=>{
+    setPendingKey('draft-review');setModuleDraftError('');
+    try{const draft=await draftAutosave.flush();await api.post('/api/admin/simulation-drafts/'+draft.id+'/review',{version:draft.version,confirmed});setSourceReviewConfirmed(confirmed);}
+    catch(error){setModuleDraftError(safeError(error));}finally{setPendingKey('');}
+  };
+  const saveModuleDraft=async()=>{
+    setPendingKey('module-save-draft');setModuleDraftError('');
+    try{const draft=await draftAutosave.flush();await api.post('/api/admin/simulation-drafts/'+draft.id+'/publish',{version:draft.version});await closeModulePreview({skipFlush:true});await loadModules();}
+    catch(error){setModuleDraftError(safeError(error));throw error;}finally{setPendingKey('');}
+  };
+  const startDraftLab=async()=>{
+    setPendingKey('draft-lab');setModuleDraftError('');
+    try{const draft=await draftAutosave.flush();const {data}=await api.post('/api/admin/simulation-drafts/'+draft.id+'/lab',{version:draft.version});setAdminWindowsOsTest({id:data.moduleId,title:draft.title,steps:data.definition.steps,draftId:draft.id,draftVersion:draft.version});}
+    catch(error){setModuleDraftError(safeError(error));}finally{setPendingKey('');}
   };
 
   const deleteSimulationModule = async (module) => {
@@ -1982,7 +1961,7 @@ function AdminPageContent() {
             {!loading && activePage === "sims" ? (
               <div className="page active simulation-modules-page">
                 <header className="module-library-heading"><div><h1>Simulation library</h1><p>Manage the simulations available for students to practice.</p></div><p className="module-library-summary"><strong>{moduleStats.enabled}</strong> active<span aria-hidden="true"> / </span><strong>{moduleStats.completions}</strong> completions</p></header>
-                {simulationView === "modules" && savedDrafts.length ? <section className="saved-simulation-drafts"><h2>Saved drafts</h2><p>Unpublished work saved automatically. Resume a draft to continue editing and testing.</p>{savedDrafts.map(record=><div className="saved-draft-row" key={record.id}><div><strong>{record.title}</strong><span>{record.simulation?.surface} / Updated {new Date(record.updatedAt).toLocaleString()}</span></div><button type="button" className="btn-sm" onClick={()=>openModulePreview(record.simulation,{draftRecord:record})}>Resume draft</button><button type="button" className="btn-sm btn-danger" onClick={async()=>{try{await api.delete('/api/admin/simulation-drafts/'+record.id);await loadModules();}catch(error){window.alert(safeError(error));}}}>Discard</button></div>)}</section>:null}
+                {simulationView === "modules" && savedDrafts.length ? <section className="saved-simulation-drafts"><h2>Saved drafts</h2><p>Unpublished work saved automatically. Resume a draft to continue editing and testing.</p>{savedDrafts.map(record=><div className="saved-draft-row" key={record.id}><div><strong>{record.title}</strong><span>{record.workflow?.status==='READY_TO_PUBLISH'?'Ready to publish':'Draft'} / {record.simulation?.surface==='windows-os'?'Windows lab':'Windows Terminal'} / Updated {new Date(record.updatedAt).toLocaleString()}</span></div><button type="button" className="btn-sm" onClick={()=>openModulePreview(record.simulation,{draftRecord:record})}>Resume draft</button><button type="button" className="btn-sm btn-danger" onClick={async()=>{try{await api.delete('/api/admin/simulation-drafts/'+record.id);await loadModules();}catch(error){window.alert(safeError(error));}}}>Discard</button></div>)}</section>:null}
                 <div className="sim-view-tabs" role="tablist" aria-label="Simulation module views">
                   <button type="button" className={simulationView === "modules" ? "active" : ""} onClick={() => setSimulationView("modules")} role="tab" aria-selected={simulationView === "modules"}>Modules <span>{moduleStats.total}</span></button>
                   <button type="button" className={simulationView === "suggestions" ? "active" : ""} onClick={() => setSimulationView("suggestions")} role="tab" aria-selected={simulationView === "suggestions"}>Suggestion Queue <span>{promptInsightFeed.length}</span></button>
@@ -2019,7 +1998,7 @@ function AdminPageContent() {
                         Modules
                       </div>
                       <div className="sim-module-filters">
-                        <select name="admin-page-module-status-filter" value={moduleStatusFilter} onChange={(event) => setModuleStatusFilter(event.target.value)} aria-label="Filter modules by status"><option value="all">All statuses</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select>
+                        <select name="admin-page-module-status-filter" value={moduleStatusFilter} onChange={(event) => setModuleStatusFilter(event.target.value)} aria-label="Filter modules by status"><option value="all">All statuses</option><option value="enabled">Published</option><option value="disabled">Draft</option></select>
                       </div>
                     </div>
                     <div className="sim-grid module-library-list">
@@ -2034,7 +2013,6 @@ function AdminPageContent() {
                         const pending = pendingKey === `module-${module.id}`;
                         const deleting = pendingKey === `module-delete-${module.id}`;
                         const moduleSimulation = getModuleSimulationDefinition(module);
-                        const canTestWindows = moduleSimulation.surface === "windows-os";
 
                         return (
                           <div className="sim-card module-library-row" key={module.id}>
@@ -2046,7 +2024,7 @@ function AdminPageContent() {
                               </div>
                               <div className="sim-controls">
                                 <span className={`badge ${module.enabled ? "badge-active" : "badge-inactive"}`}>
-                                  {module.enabled ? "Enabled" : "Disabled"}
+                                  {module.enabled ? "Published" : "Draft"}
                                 </span>
                               </div>
                             </div>
@@ -2073,22 +2051,14 @@ function AdminPageContent() {
                               ) : null}
                               <details className="module-more"><summary aria-label={"More actions for " + module.title}>More <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary><div className="module-more-options">
                               <ModuleRevisionHistory moduleId={module.id} />
-                              {canTestWindows ? (
-                                <button
-                                  type="button"
-                                  className="btn-sm sim-runtime-start-btn"
-                                  onClick={() => setAdminWindowsOsTest({ id: module.id, title: module.title, steps: moduleSimulation.steps })}
-                                >
-                                  Test Windows
-                                </button>
-                              ) : null}
+
                               <button
                                 type="button"
                                 className={`btn-sm ${module.enabled ? "btn-danger" : ""}`}
                                 disabled={pending}
-                                onClick={() => !module.enabled && ["windows-terminal"].includes(moduleSimulation.surface) ? openModulePreview(moduleSimulation, {surface:moduleSimulation.surface,moduleId:module.id,edit:true}) : updateModule(module.id, { enabled: !module.enabled })}
+                                onClick={() => !module.enabled ? openModulePreview(moduleSimulation, {surface:moduleSimulation.surface,moduleId:module.id,edit:true}) : updateModule(module.id, { enabled: !module.enabled })}
                               >
-                                {module.enabled ? "Disable" : "Enable"}
+                                {module.enabled ? "Unpublish" : "Review & publish"}
                               </button>
                               <button
                                 type="button"
@@ -2123,9 +2093,9 @@ function AdminPageContent() {
                   <span className="dot yellow" />
                   <span className="dot green" />
                 </div>
-                <div className="sim-preview-module-title">
-                  <span>{modulePreview.title}</span> · {isDraftPreview ? "AI Module" : "Simulation"}
-                </div>
+                <div className="sim-preview-title-block"><div className="sim-preview-module-title">
+                  <span>{modulePreview.title}</span> · {isDraftPreview ? (previewVerifiedModuleId ? "Draft revision" : "Draft") : "Module preview"}
+                </div><p className="sim-preview-environment-label"><strong>{modulePreviewSurface === 'windows-os' ? 'Windows lab' : 'Windows Terminal'}</strong><span>{modulePreviewSurface === 'windows-os' ? 'Remote desktop' : 'Simulated command line'}</span></p></div>
               </div>
               <div className="sim-preview-topbar-right">
                 <ModalCloseButton type="button" className="btn-sm sim-preview-close-btn" onClick={closeModulePreview} aria-label="Close simulation preview" />
@@ -2137,44 +2107,9 @@ function AdminPageContent() {
 
 
             {moduleEditorOpen && ["windows-terminal"].includes(modulePreviewSurface) ? (
-              <TerminalModuleTester key={previewVerifiedModuleId || moduleDraftMeta?.sourcePrompt || modulePreview.title} definition={{...modulePreview,surface:modulePreviewSurface,terminalType:modulePreviewSurface}} existing={Boolean(previewVerifiedModuleId)} evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} reviewRequired={!!moduleDraftMeta?.rag} reviewed={sourceReviewConfirmed} reviewControl={moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={setSourceReviewConfirmed}/>:null} initialTest={moduleDraftMeta?.initialTest} sources={moduleDraftMeta?.rag?.sources} onChange={next=>{setModulePreview(next);setSourceReviewConfirmed(false);draftAutosave.change(next);}} saveStatus={draftAutosave.status} onSave={async (simulation,testToken) => {
-                const savedDraft=await draftAutosave.flush();
-                const draftInfo={draftId:savedDraft?.id,draftVersion:savedDraft?.version,baseRevision:moduleDraftMeta?.baseRevision,sourceReviewConfirmed};
-                if(previewVerifiedModuleId) await api.patch(`/api/admin/simulation-modules/${previewVerifiedModuleId}`, {simulation,testToken,enabled:true,...draftInfo});
-                else await api.post("/api/admin/simulation-modules", {mode:"manual",title:moduleDraftMeta?.title || simulation.title,category:moduleDraftMeta?.category || "General",sourcePrompt:moduleDraftMeta?.sourcePrompt,simulation,testToken,enabled:false,...draftInfo});
-                await closeModulePreview({skipFlush:true}); await loadModules();
-              }} />
-            ) : isDraftPreview ? (
+              <TerminalModuleTester key={previewVerifiedModuleId || moduleDraftMeta?.sourcePrompt || modulePreview.title} definition={{...modulePreview,surface:modulePreviewSurface,terminalType:modulePreviewSurface}} existing={Boolean(previewVerifiedModuleId)} evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} workflowBusy={pendingKey==='draft-review'} reviewRequired={!!moduleDraftMeta?.rag} reviewed={sourceReviewConfirmed} reviewControl={moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={reviewModuleDraft} disabled={pendingKey === "draft-review"}/>:null} initialTest={moduleDraftMeta?.initialTest} sources={moduleDraftMeta?.rag?.sources} onChange={next=>{setModulePreview(next);setSourceReviewConfirmed(false);setModuleDraftMeta(previous=>({...previous,initialTest:null}));draftAutosave.change(next);}} saveStatus={draftAutosave.status} onSave={saveModuleDraft} />            ) : isDraftPreview ? (
               <>
-                <DesktopModuleEditor evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} definition={modulePreview} sources={moduleDraftMeta?.rag?.sources} busy={pendingKey === 'module-save-draft'} onChange={next => {setModulePreview(next);setSourceReviewConfirmed(false);draftAutosave.change(next);setModuleDraftError('');}} />
-
-                <div className="sim-preview-footer">
-                  <div className="sim-preview-footer-center">
-                    {moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={setSourceReviewConfirmed}/>:null}
-                    <div className="sim-preview-step-dots" aria-hidden="true">
-                      {previewSteps.map((step, index) => (
-                        <span
-                          key={`dot-${step.title}-${index}`}
-                          className={`sim-preview-step-dot ${index < previewSafeStep ? "done" : index === previewSafeStep ? "active" : "todo"}`}
-                        />
-                      ))}
-                    </div>
-                    <span className="sim-preview-footer-nav">{draftAutosave.status}</span>
-                  </div>
-                  <div className="sim-preview-btn-row">
-                    <button type="button" className="btn-sm sim-preview-discard" onClick={async()=>{try{await draftAutosave.flush();await api.delete('/api/admin/simulation-drafts/'+moduleDraftMeta.draftId);await closeModulePreview({skipFlush:true});await loadModules();}catch(error){setModuleDraftError(safeError(error));}}}>
-                      Discard Draft
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-sm sim-preview-approve"
-                      disabled={pendingKey === "module-save-draft" || (!!moduleDraftMeta?.rag && !sourceReviewConfirmed)}
-                      onClick={saveModuleDraft}
-                    >
-                      {pendingKey === "module-save-draft" ? "Saving..." : "Approve & Save Module"}
-                    </button>
-                  </div>
-                </div>
+                <DesktopModuleEditor evidencePanel={<RagSourcePanel rag={moduleDraftMeta?.rag}/>} definition={modulePreview} sources={moduleDraftMeta?.rag?.sources} busy={!!adminWindowsOsTest||['module-save-draft','draft-review','draft-lab'].includes(pendingKey)} reviewed={!moduleDraftMeta?.rag||sourceReviewConfirmed} reviewControl={moduleDraftMeta?.rag?<SourceReviewConfirmation reviewed={sourceReviewConfirmed} onReview={reviewModuleDraft} disabled={pendingKey==='draft-review'}/>:null} test={moduleDraftMeta?.initialTest} onStartTest={startDraftLab} onPublish={()=>saveModuleDraft().catch(()=>{})} existing={!!previewVerifiedModuleId} saveStatus={draftAutosave.status} onChange={next=>{setModulePreview(next);setSourceReviewConfirmed(false);setModuleDraftMeta(previous=>({...previous,initialTest:null}));draftAutosave.change(next);setModuleDraftError('');}} />
               </>
             ) : (
               <>
@@ -2425,7 +2360,8 @@ function AdminPageContent() {
               moduleId={adminWindowsOsTest.id}
               title={adminWindowsOsTest.title}
               steps={adminWindowsOsTest.steps}
-              onEnded={() => setAdminWindowsOsTest(null)}
+              onTestComplete={adminWindowsOsTest.draftId?async result=>{await api.post('/api/admin/simulation-drafts/'+adminWindowsOsTest.draftId+'/lab-confirmation',{...result,version:adminWindowsOsTest.draftVersion,confirmed:true});}:undefined}
+              onEnded={async()=>{const draftId=adminWindowsOsTest.draftId;setAdminWindowsOsTest(null);if(draftId){try{const {data}=await api.get('/api/admin/simulation-drafts/'+draftId);setModuleDraftMeta(previous=>({...previous,initialTest:data.draft.test}));}catch(error){setModuleDraftError(safeError(error));}}}}
             />
           </div>
         </div>
