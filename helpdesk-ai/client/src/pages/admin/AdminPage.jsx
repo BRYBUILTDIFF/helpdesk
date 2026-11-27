@@ -31,6 +31,25 @@ import helpdeskLogo from "../../IMG/HELPDESKAI.png";
 import "./admin.css";
 import "./admin-workspace.css";
 
+function keepModuleActionsVisible(event) {
+  if (!event.currentTarget.open) return;
+  const menu = event.currentTarget.querySelector('.module-more-options');
+  const pane = event.currentTarget.closest('.module-library-scroll');
+  if (!menu || !pane) return;
+  menu.style.boxSizing = 'border-box';
+  menu.style.maxHeight = Math.max(80, pane.clientHeight - 16) + 'px';
+  menu.style.overflowY = 'auto';
+  menu.style.top = 'calc(100% + 8px)';
+  menu.style.bottom = 'auto';
+  const bounds = pane.getBoundingClientRect();
+  if (menu.getBoundingClientRect().bottom > bounds.bottom) {
+    menu.style.top = 'auto';
+    menu.style.bottom = 'calc(100% + 8px)';
+    const top = menu.getBoundingClientRect().top - bounds.top - 8;
+    if (top < 0) pane.scrollTop += top;
+  }
+}
+
 const POLICY_OUTCOME_LABELS = { ALLOWED: "Allowed", REDIRECTED: "Redirected", BLOCKED: "Blocked", OUTPUT_FILTERED: "Output filtered", UNAVAILABLE: "Unavailable" };
 function outcomeBadge(event) { return event.outcome === "BLOCKED" ? "badge-blocked" : event.outcome === "ALLOWED" ? "badge-allowed" : "badge-policy-neutral"; }
 function outcomeLabel(event) { return POLICY_OUTCOME_LABELS[event.outcome] || (event.blocked ? "Blocked" : "Allowed"); }
@@ -1966,12 +1985,11 @@ function AdminPageContent() {
             {!loading && activePage === "sims" ? (
               <div className="page active simulation-modules-page">
                 <header className="module-library-heading"><div><h1>Simulation library</h1><p>Manage the simulations available for students to practice.</p></div><p className="module-library-summary"><strong>{moduleStats.enabled}</strong> active<span aria-hidden="true"> / </span><strong>{moduleStats.completions}</strong> completions</p></header>
-                {simulationView === "modules" && savedDrafts.length ? <section className="saved-simulation-drafts"><h2>Saved drafts</h2><p>Unpublished work saved automatically. Resume a draft to continue editing and testing.</p>{savedDrafts.map(record=><div className="saved-draft-row" key={record.id}><div><strong>{record.title}</strong><span>{record.workflow?.status==='READY_TO_PUBLISH'?'Ready to publish':'Draft'} / {record.simulation?.surface==='windows-os'?'Windows lab':'Windows Terminal'} / Updated {new Date(record.updatedAt).toLocaleString()}</span></div><button type="button" className="btn-sm" onClick={()=>openModulePreview(record.simulation,{draftRecord:record})}>Resume draft</button><button type="button" className="btn-sm btn-danger" onClick={async()=>{try{await api.delete('/api/admin/simulation-drafts/'+record.id);await loadModules();}catch(error){window.alert(safeError(error));}}}>Discard</button></div>)}</section>:null}
                 <div className="sim-view-tabs" role="tablist" aria-label="Simulation module views">
                   <button type="button" className={simulationView === "modules" ? "active" : ""} onClick={() => setSimulationView("modules")} role="tab" aria-selected={simulationView === "modules"}>Modules <span>{moduleStats.total}</span></button>
                   <button type="button" className={simulationView === "suggestions" ? "active" : ""} onClick={() => setSimulationView("suggestions")} role="tab" aria-selected={simulationView === "suggestions"}>Suggestion Queue <span>{promptInsightFeed.length}</span></button>
                 </div>
-                <div className={"panel sim-workspace"+(simulationView === "suggestions" ? " sim-requests-workspace" : "")}>
+                <div className={"panel sim-workspace"+(simulationView === "suggestions" ? " sim-requests-workspace" : " sim-library-workspace")}>
                   {simulationView === "suggestions" ? (
                     <>
                       <div className="sim-workspace-head sim-prompt-head">
@@ -2006,6 +2024,8 @@ function AdminPageContent() {
                         <select name="admin-page-module-status-filter" value={moduleStatusFilter} onChange={(event) => setModuleStatusFilter(event.target.value)} aria-label="Filter modules by status"><option value="all">All statuses</option><option value="enabled">Published</option><option value="disabled">Draft</option></select>
                       </div>
                     </div>
+                    <div className="module-library-scroll" role="region" aria-label="Simulation modules and saved drafts" tabIndex={0}>
+                {savedDrafts.length ? <section className="saved-simulation-drafts"><h2>Saved drafts</h2><p>Unpublished work saved automatically. Resume a draft to continue editing and testing.</p>{savedDrafts.map(record=><div className="saved-draft-row" key={record.id}><div><strong>{record.title}</strong><span>{record.workflow?.status==='READY_TO_PUBLISH'?'Ready to publish':'Draft'} / {record.simulation?.surface==='windows-os'?'Windows lab':'Windows Terminal'} / Updated {new Date(record.updatedAt).toLocaleString()}</span></div><button type="button" className="btn-sm" onClick={()=>openModulePreview(record.simulation,{draftRecord:record})}>Resume draft</button><button type="button" className="btn-sm btn-danger" onClick={async()=>{try{await api.delete('/api/admin/simulation-drafts/'+record.id);await loadModules();}catch(error){window.alert(safeError(error));}}}>Discard</button></div>)}</section>:null}
                     <div className="sim-grid module-library-list">
                       {filteredModules.length === 0 ? (
                         <SimulationEmptyState
@@ -2055,7 +2075,7 @@ function AdminPageContent() {
                               {["windows-terminal", "windows-os"].includes(moduleSimulation.surface) ? (
                                 <button type="button" className="btn-sm" onClick={() => openModulePreview(moduleSimulation, {surface:moduleSimulation.surface,moduleId:module.id,edit:true})}>Edit</button>
                               ) : null}
-                              <details className="module-more"><summary aria-label={"More actions for " + module.title}>More <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary><div className="module-more-options">
+                              <details className="module-more" onToggle={keepModuleActionsVisible}><summary aria-label={"More actions for " + module.title}>More <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary><div className="module-more-options">
                               <ModuleRevisionHistory moduleId={module.id} />
 
                               <button
@@ -2079,6 +2099,7 @@ function AdminPageContent() {
                           </div>
                         );
                       })}
+                    </div>
                     </div>
                     </>
                   )}

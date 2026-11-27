@@ -634,3 +634,11 @@
 }
 /* Let the request card fill the space left below the protected tabs. */
 .admin-ui .simulation-modules-page .sim-requests-workspace { flex:1 1 0; max-height:none; }
+.admin-ui .content.content-simulations:has(.sim-library-workspace) { display:flex; min-height:0; overflow:hidden; }
+.admin-ui .simulation-modules-page .sim-library-workspace { flex:1 1 0; min-height:0; overflow:hidden; grid-template-rows:auto minmax(0,1fr); }
+.admin-ui .sim-library-workspace > .sim-workspace-head { flex-shrink:0; margin-bottom:0; }
+.admin-ui .module-library-scroll { min-height:0; overflow-y:auto; overflow-x:hidden; padding:0 8px 16px 0; scrollbar-gutter:stable; scrollbar-width:thin; scrollbar-color:var(--color-border-secondary) var(--color-background-secondary); overscroll-behavior:contain; }
+.admin-ui .module-library-scroll::-webkit-scrollbar { width:8px; height:8px; }
+.admin-ui .module-library-scroll::-webkit-scrollbar-track { background:var(--color-background-secondary); }
+.admin-ui .module-library-scroll::-webkit-scrollbar-thumb { background:var(--color-border-secondary); border-radius:4px; }
+.admin-ui .module-library-scroll .saved-simulation-drafts { margin:16px 0 0; }
