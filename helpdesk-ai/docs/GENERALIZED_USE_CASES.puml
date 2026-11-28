@@ -1,4 +1,4 @@
-﻿@startuml
+@startuml
 left to right direction
 skinparam shadowing false
 skinparam packageStyle rectangle
@@ -7,20 +7,20 @@ skinparam usecaseBorderColor #52766B
 skinparam actorBorderColor #234B47
 skinparam rectangleBorderColor #52766B
 
-actor "Administrator" as Admin
+actor "Admin" as Admin
 actor "User" as User
 
 rectangle "HelpDesk AI" {
-  usecase "Access the system" as UC01
+  usecase "Sign in and out" as UC01
   usecase "Manage account security" as UC02
-  usecase "Monitor system activity" as AD01
-  usecase "Manage user accounts" as AD02
+  usecase "View dashboard" as AD01
+  usecase "Manage accounts" as AD02
   usecase "Manage AI policies" as AD03
-  usecase "Manage simulation modules" as AD04
-  usecase "Review administrator activity" as AD05
-  usecase "Request AI troubleshooting\nassistance" as US01
-  usecase "Manage personal conversations" as US02
-  usecase "Perform IT simulations" as US03
+  usecase "Manage simulations" as AD04
+  usecase "View audit logs" as AD05
+  usecase "Get IT help" as US01
+  usecase "Manage conversations" as US02
+  usecase "Practice simulations" as US03
 }
 
 Admin -- UC01

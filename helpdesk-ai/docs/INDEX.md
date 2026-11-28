@@ -6,9 +6,10 @@ All project Markdown documentation lives in this folder.
 | --- | --- |
 | [Admin simulation RAG](ADMIN_RAG_SETUP.md) | Word/TXT knowledge ingestion, full-text retrieval, source review, deployment and verification |
 | [Setup guide](README.md) | Installation, configuration, startup, and API overview |
-| [Generalized use cases](GENERALIZED_USE_CASES.md) | Administrator and User goals, feature scope, and use-case diagrams |
+| [Role use cases](GENERALIZED_USE_CASES.md) | Simple Admin and User actions and use-case diagrams |
 | [Administrator flowchart](ADMIN_FLOWCHART.md) | Administrator sign-in, feature navigation, and work cycle |
 | [User flowchart](USER_FLOWCHART.md) | User troubleshooting, saved conversations, and simulation workflow |
+| [Data flow diagram](DATA_FLOW_DIAGRAM.md) | Simple context and Level 1 diagrams of actors, processes and data stores |
 | [System overview](SYSTEM_OVERVIEW.md) | Architecture and system behavior |
 | [AI overview](AIOVERVIEW.MD) | Detailed AI answering flow, policy, context, safety, and simulation integration |
 | [Windows simulation](WINDOWS_OS_SIMULATION.md) | Windows lab and Guacamole setup |

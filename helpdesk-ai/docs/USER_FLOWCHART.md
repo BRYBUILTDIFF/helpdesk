@@ -1,73 +1,59 @@
-﻿# User flowchart — HelpDesk AI
+# User flowchart — HelpDesk AI
 
-This chart shows the regular user's general troubleshooting, conversation-management and simulation workflow.
+Sign in, get IT help or practice tasks, then sign out when finished.
 
 ```mermaid
 flowchart TD
     START([Start]) --> LOGIN[Sign in with a user account]
-    LOGIN --> VALID{Valid credentials and active account?}
-    VALID -- No --> LOGIN_ERROR[Display sign-in error]
-    LOGIN_ERROR --> LOGIN
+    LOGIN --> VALID{Sign-in successful?}
+    VALID -- No --> ERROR[Show sign-in error]
+    ERROR --> LOGIN
     VALID -- Yes --> PASSWORD{Password change required?}
-    PASSWORD -- Yes --> CHANGE[Complete the required password change]
-    PASSWORD -- No --> HOME[Open user workspace]
-    CHANGE --> HOME
+    PASSWORD -- Yes --> CHANGE[Change password]
+    CHANGE --> PASSWORD
+    PASSWORD -- No --> HOME[User workspace]
     HOME --> TASK{Choose an activity}
 
-    TASK -- AI assistance --> ISSUE[Enter an IT problem or follow-up question]
-    ISSUE --> CHECK[Apply safety and scope checks]
-    CHECK --> ALLOWED{Troubleshooting request allowed?}
-    ALLOWED -- No --> GUIDANCE[Display policy guidance or service message]
-    ALLOWED -- Yes --> RESPONSE[Receive AI troubleshooting guidance]
-    RESPONSE --> FOLLOWUP{Ask a follow-up question?}
-    FOLLOWUP -- Yes --> ISSUE
-    FOLLOWUP -- No --> CONTINUE{Continue working?}
-    GUIDANCE --> CONTINUE
+    TASK --> HELP[Get IT help]
+    HELP --> ASK[Ask an IT question]
+    ASK --> RESPONSE[Receive guidance or a policy message]
+    RESPONSE --> MORE{Ask a follow-up?}
+    MORE -- Yes --> ASK
+    MORE -- No --> TASK
 
-    TASK -- Saved conversations --> HISTORY[Open, search, organize or delete personal conversations]
-    HISTORY --> CONTINUE
+    TASK --> CHATS[Manage conversations]
+    CHATS --> TASK
 
-    TASK -- Simulations --> MODULE[Choose an available simulation]
-    MODULE --> READY{Simulation workspace available?}
-    READY -- No --> RETRY[Display an error and retry or return]
-    RETRY --> TASK
-    READY -- Yes --> PRACTICE[Follow the walkthrough and perform guided tasks]
-    PRACTICE --> FINISH{Complete or end the simulation?}
-    FINISH -- Complete --> COMPLETE[Submit completion for validation and recording]
-    COMPLETE --> ACCEPTED{Completion accepted?}
-    ACCEPTED -- No --> PRACTICE
-    ACCEPTED -- Yes --> CONTINUE
-    FINISH -- End --> STOP[End the active simulation]
-    STOP --> CONTINUE
+    TASK --> MODULE[Choose a simulation]
+    MODULE --> PRACTICE[Follow tasks in the available workspace]
+    PRACTICE --> RESULT[Complete or end the simulation]
+    RESULT --> TASK
 
-    TASK -- Account security --> SECURITY[Manage own password and sessions or delete chat data]
-    SECURITY --> SESSION{Session still active?}
-    SESSION -- Yes --> CONTINUE
-    SESSION -- No --> END([End])
-    TASK -- Sign out --> LOGOUT[Sign out]
-    CONTINUE -- Yes --> HOME
-    CONTINUE -- No --> LOGOUT
-    LOGOUT --> END
+    TASK --> SECURITY[Manage account security]
+    SECURITY --> SESSION{Still signed in?}
+    SESSION -- Yes --> TASK
+    SESSION -- No --> FINISH([End])
+    TASK --> LOGOUT[Sign out]
+    LOGOUT --> FINISH
 ```
 
-## What each activity covers
+## Activities
 
-| Activity | General activity |
+| Activity | What the user does |
 | --- | --- |
-| AI assistance | Describe an IT issue, respond to clarifying questions and continue troubleshooting through follow-up messages. |
-| Saved conversations | Start or reopen conversations, search history, mark favorites, use supported prompt editing and delete personal conversations. |
-| Simulations | Access available modules and practice the supported terminal or Windows desktop tasks. Follow instructions, review available progress, and complete or end the simulation. |
-| Account security | Change the user's own password, delete personal chat data or sign out of all devices. Signing out everywhere ends the current session. |
+| Get IT help | Describe an IT problem and ask follow-up questions. |
+| Manage conversations | Start, reopen, search, favorite or delete your conversations. |
+| Practice simulations | Choose a module, follow its tasks, and complete or end the simulation. |
+| Manage account security | Change your password or sign out of all devices. |
 
-## Flow rules
+## Notes
 
-- The regular-user role is a precondition. A valid administrator account opens the administrator workspace instead of this flow. Accounts are supplied by an administrator; public registration is not part of the workflow.
-- An unsuccessful password update leaves the user on the password-change screen until it succeeds.
-- The AI branch is generalized. The implementation checks responses as well as requests; clarification, unsupported-topic guidance and safety/service messages may replace troubleshooting instructions. Users cannot bypass a cooldown simply by resubmitting the same request.
-- A terminal workspace uses simulated server actions. A Windows workspace is prepared remotely before it becomes usable. The availability decision covers permissions, capacity, provisioning and connection failures.
-- Terminal completion requires the server-issued attempt's required steps to be verified. Windows completion requires an associated live workspace and remains self-reported; the chart does not imply verification of actual OS changes.
-- Ending a simulation is separate from recording completion. An expired or unusable workspace may need to be ended and restarted rather than returning to practice in the same attempt.
-- Saved progress is retained where supported. A new Windows lab is a fresh environment; resuming saved guidance is not a promise to restore a terminated VM's disk state.
-- Returning to the workspace represents navigation chosen by the user. The application may keep the current chat or simulation review open after a task.
+- Use an active account provided by an admin.
+- A required password change must succeed before proceeding.
+- AI assistance follows IT scope and safety rules.
+- If a simulation is unavailable, retry or choose another activity. Rejected completion requires correction before it can be recorded.
+- Terminal completion uses verified simulated steps. Windows completion is self-reported.
+- Returning to activity selection is a navigation choice. End an active simulation before leaving it.
+- Signing out of all devices ends the current session.
 
-Related: [Generalized use cases](GENERALIZED_USE_CASES.md) and [Administrator flowchart](ADMIN_FLOWCHART.md).
+Related: [Role use cases](GENERALIZED_USE_CASES.md) and [Admin flowchart](ADMIN_FLOWCHART.md).
